@@ -34,5 +34,6 @@ Mockups oficiales (HTML con 12 pantallas, modo claro y oscuro): `docs/designs/mo
 - Los commits van a nombre del usuario (identidad de git configurada). **Sin** línea `Co-Authored-By` ni mención de Claude.
 
 ## Comandos
-- Pruebas unitarias: `./gradlew testDebugUnitTest`
-- Compilar: `./gradlew assembleDebug`
+- Ambientes (variantes de `:app`): `dev` (`.dev`), `qa` (`.qa`) y `prod` (sin sufijo); se instalan a la vez y cada una muestra su nombre.
+- Pruebas unitarias: `./gradlew testDebugUnitTest testDevDebugUnitTest` (los módulos de librería usan `testDebugUnitTest`; `:app`, por tener variantes, usa `testDevDebugUnitTest`)
+- Compilar un ambiente: `./gradlew assembleDevDebug` (o `assembleQaDebug`, `assembleProdDebug`)

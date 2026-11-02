@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Environment label "PROD" drawn as strokes so it needs no font. Safe zone: x 21..87, y 21..87. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M25.5,64V44h6c4,0 6,2 6,5s-2,5 -6,5h-6M40.5,64V44h6c4,0 6,2 6,5s-2,5 -6,5h-6M46.5,54L52.5,64M61.5,44c-5,0 -6,3 -6,10s1,10 6,10s6,-3 6,-10s-1,-10 -6,-10zM70.5,44h4c7,0 8,4 8,10s-1,10 -8,10h-4z" />
+</vector>
