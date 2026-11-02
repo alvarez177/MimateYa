@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 1: base del proyecto — qué hicimos y por qué</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+</style>
+</head>
+<body>
+<h1>Paso 1: base del proyecto</h1>
+<p class="sub">Rama <code>feature/project-setup</code> · MimateYa v1 · Explicación para aprender, no para entregar</p>
+
+<h2>1. Qué quedó funcionando</h2>
+<ul>
+  <li>La app ya no es un solo módulo: ahora hay 5 módulos (<code>:app</code>, <code>:core</code> y tres features).</li>
+  <li>Hilt (inyección de dependencias) está conectado y compila con AGP 9.4.1.</li>
+  <li>Hay <strong>tres ambientes</strong> instalables a la vez: dev, QA y prod, cada uno con su <strong>nombre</strong> y su <strong>icono</strong> (DEV ámbar, QA violeta, PROD azul).</li>
+  <li>MockK y <code>kotlinx-collections-immutable</code> ya están en el proyecto, listos para el paso 2.</li>
+</ul>
+
+<h2>2. Los módulos y por qué existen</h2>
+<pre><code>settings.gradle.kts
+include(":app")
+include(":core")
+include(":feature:agenda")
+include(":feature:clients")
+include(":feature:promos")</code></pre>
+<p>Un <strong>módulo</strong> es una carpeta con su propio <code>build.gradle.kts</code>. Separar el código así tiene dos ventajas que nos importan:</p>
+<ul>
+  <li><strong>El compilador hace cumplir las reglas.</strong> <code>:feature:agenda</code> depende de <code>:core</code> pero <em>no</em> de <code>:feature:promos</code>. Si por error alguien importa una clase de promos en agenda, simplemente no compila.</li>
+  <li><strong>Compilación más rápida.</strong> Gradle solo recompila los módulos que cambiaron.</li>
+</ul>
+<table>
+  <tr><th>Módulo</th><th>Para qué</th><th>Depende de</th></tr>
+  <tr><td><code>:app</code></td><td>Punto de entrada, navegación y cableado de Hilt</td><td>todos</td></tr>
+  <tr><td><code>:core</code></td><td>Errores, modelos compartidos, interfaces de repositorio</td><td>—</td></tr>
+  <tr><td><code>:feature:agenda</code></td><td>Turnos</td><td><code>:core</code></td></tr>
+  <tr><td><code>:feature:clients</code></td><td>Clientes</td><td><code>:core</code></td></tr>
+  <tr><td><code>:feature:promos</code></td><td>Planes y motor de promos</td><td><code>:core</code></td></tr>
+</table>
+<div class="box tip">Dentro de cada feature, el código irá en paquetes <code>domain</code>, <code>data</code> y <code>presentation</code> (decisión tuya). Todavía no hay paquetes porque no hay código: no creamos carpetas vacías.</div>
+
+<h2>3. El catálogo de versiones</h2>
+<pre><code>gradle/libs.versions.toml
+[versions]
+hilt = "2.60.1"
+ksp = "2.3.13"
+mockk = "1.14.11"
+collectionsImmutable = "0.5.2"
+
+[libraries]
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }</code></pre>
+<p>Todas las versiones viven en <strong>un solo archivo</strong>. En los <code>build.gradle.kts</code> se usan como <code>libs.hilt.android</code>: cambiar una versión es tocar una línea, no cinco archivos.</p>
+<p>Actualizamos <code>core-ktx</code>, <code>lifecycle</code> y <code>activity-compose</code> (estaban muy atrasadas) y las consultamos en el repositorio de Maven antes de escribirlas, para no inventar versiones.</p>
+
+<h2>4. Hilt: qué es y qué hicimos</h2>
+<pre><code>@HiltAndroidApp
+class MimateYaApplication : Application()
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() { ... }</code></pre>
+<p><strong>Inyección de dependencias</strong> significa que una clase no crea lo que necesita: lo recibe. Por ejemplo, un <code>ViewModel</code> recibirá su repositorio en el constructor. Eso hace el código fácil de probar con MockK, porque en la prueba le pasas un falso.</p>
+<ul>
+  <li><code>@HiltAndroidApp</code> en la clase <code>Application</code> es la raíz del grafo de dependencias.</li>
+  <li><code>@AndroidEntryPoint</code> en la actividad permite que reciba inyección.</li>
+  <li>El manifest apunta a la nueva clase: <code>android:name=".MimateYaApplication"</code>.</li>
+</ul>
+<div class="box tip"><strong>Riesgo que verificamos primero:</strong> AGP 9 trae Kotlin integrado, y no sabíamos si KSP (el procesador que genera código de Hilt) funcionaba así. Compiló sin cambios: corrieron <code>kspDevDebugKotlin</code> y las tareas <code>hilt*</code>.</div>
+
+<h2>5. Los tres ambientes</h2>
+<pre><code>app/build.gradle.kts
+flavorDimensions += "environment"
+productFlavors {
+    create("dev")  { applicationIdSuffix = ".dev"; resValue("string", "app_name", "MimateYa Dev") }
+    create("qa")   { applicationIdSuffix = ".qa";  resValue("string", "app_name", "MimateYa QA") }
+    create("prod") {                                resValue("string", "app_name", "MimateYa") }
+}</code></pre>
+<p>Un <strong>product flavor</strong> es una variante de la misma app con su propia configuración. Aquí hay tres, y cada una tiene un <code>applicationId</code> distinto:</p>
+<table>
+  <tr><th>Ambiente</th><th>applicationId</th><th>Nombre en el celular</th></tr>
+  <tr><td>dev</td><td><code>com.salvarez.mimateyaandroid.dev</code></td><td>MimateYa Dev</td></tr>
+  <tr><td>qa</td><td><code>com.salvarez.mimateyaandroid.qa</code></td><td>MimateYa QA</td></tr>
+  <tr><td>prod</td><td><code>com.salvarez.mimateyaandroid</code></td><td>MimateYa</td></tr>
+</table>
+<p>Como los ids son distintos, Android las trata como apps diferentes: puedes tener las tres instaladas a la vez sin que se pisen. En el Paso 6, cada una usará su propio proyecto de Firebase, así los datos de prueba nunca se mezclan con los reales.</p>
+<div class="box warn"><strong>Detalle que apareció:</strong> AGP 9 pide activar <code>buildFeatures { resValues = true }</code> para usar <code>resValue(...)</code>. Sin eso la configuración falla con "custom resource values, but the feature is disabled". También quitamos <code>app_name</code> de <code>strings.xml</code>, porque ahora lo define cada ambiente (si estuviera en los dos sitios habría un duplicado).</div>
+
+<h3>Un icono distinto por ambiente</h3>
+<table>
+  <tr><th>Ambiente</th><th>Fondo</th><th>Letras</th></tr>
+  <tr><td>dev</td><td>Ámbar <code>#F59E0B</code></td><td>DEV</td></tr>
+  <tr><td>qa</td><td>Violeta <code>#7C3AED</code></td><td>QA</td></tr>
+  <tr><td>prod</td><td>Azul de la marca <code>#1D4ED8</code></td><td>PROD</td></tr>
+</table>
+<p>El icono de Android moderno es <strong>adaptativo</strong>: dos capas (fondo y primer plano) que el sistema recorta con la forma que elija el celular (círculo, cuadrado redondeado...). Cada ambiente tiene sus dos capas en su propia carpeta:</p>
+<pre><code>app/src/dev/res/drawable/ic_launcher_background.xml   (color de fondo)
+app/src/dev/res/drawable/ic_launcher_foreground.xml   (letras "DEV")
+app/src/qa/res/drawable/...
+app/src/prod/res/drawable/...</code></pre>
+<p>Los <strong>source sets por flavor</strong> funcionan así: cuando compilas <code>devDebug</code>, Gradle junta <code>src/main</code> con <code>src/dev</code>, y lo que está en <code>dev</code> gana. Por eso borramos los dibujos de <code>main</code> (el robot de la plantilla): cada ambiente trae los suyos. El archivo <code>mipmap-anydpi/ic_launcher.xml</code> no cambia: sigue apuntando a <code>@drawable/ic_launcher_background</code> y <code>_foreground</code>, y Android resuelve cuál usar según el ambiente.</p>
+<p>Las letras están <strong>dibujadas con trazos</strong> (<code>strokeColor</code>, <code>strokeLineCap="round"</code>) en vez de usar una fuente, porque un vector no puede llevar texto. Quedan dentro de la <em>zona segura</em> (x e y entre 21 y 87 de 108) para que el sistema no las corte.</p>
+<div class="box tip"><strong>Para el icono real:</strong> el de prod hoy dice "PROD" porque así lo pediste para distinguirlo. Cuando exista la marca definitiva (Paso 5 o antes de publicar), el de prod pasa a ser el logo sin letras, y dev y QA conservan sus etiquetas.</div>
+
+<h2>6. Pruebas y comandos</h2>
+<pre><code># compilar un ambiente
+./gradlew assembleDevDebug
+
+# pruebas unitarias
+./gradlew testDebugUnitTest testDevDebugUnitTest</code></pre>
+<p>Los módulos de librería no tienen variantes, así que usan <code>testDebugUnitTest</code>. <code>:app</code> sí las tiene, por eso su tarea se llama <code>testDevDebugUnitTest</code>. Todos los módulos ya incluyen JUnit y MockK.</p>
+
+<h2>7. Recomposición: por qué <code>collections-immutable</code></h2>
+<p>Compose omite recomponer una función si sus parámetros no cambiaron. Una <code>List</code> normal de Kotlin puede ser mutable por detrás, así que Compose no está seguro de que no cambió. <code>ImmutableList</code> le da esa garantía. Lo usaremos en los <code>UiState</code> de las pantallas. Está en <code>:core</code> como <code>api(...)</code>, para que los features lo reciban sin declararlo otra vez.</p>
+
+<h2>8. Cómo probarlo tú</h2>
+<ol>
+  <li>En Android Studio, abre <em>Build Variants</em> y elige <code>devDebug</code>, <code>qaDebug</code> o <code>prodDebug</code>.</li>
+  <li>Ejecuta la app: todavía muestra el "Hello Android" de la plantilla; la pantalla real llega en pasos posteriores.</li>
+  <li>Instala dos variantes en el mismo celular y comprueba que aparecen con nombres distintos.</li>
+</ol>
+</body>
+</html>

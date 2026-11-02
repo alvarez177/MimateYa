@@ -24,3 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "MimateYa Android"
 include(":app")
+include(":core")
+include(":feature:agenda")
+include(":feature:clients")
+include(":feature:promos")
