@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MimateYa — boceto v2 (aproximación, no mockup oficial)</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{
+  --ink:#12161C; --ink-2:#4A5260; --line:#E3E5E8; --paper:#FAFAF8; --card:#FFFFFF; --chip:#EEF0F3;
+  --accent:#1D4ED8; --accent-text:#1D4ED8; --accent-ink:#FFFFFF; --free:#0E7A4E; --free-bg:#DDF3E8; --muted:#8A919C; --danger:#B42318;
+  --hero-bg:#12161C; --hero-ink:#FFFFFF; --hero-sub:#B8BFCA; --track:#E3E5E8; --stage:#E9EBEE; --shade:rgba(18,22,28,.45);
+  --display:'Bricolage Grotesque','Segoe UI',sans-serif; --body:'Figtree','Segoe UI',sans-serif;
+}
+[data-theme="dark"]{
+  --ink:#F2F4F7; --ink-2:#A9B1BD; --line:#2A313B; --paper:#0F1318; --card:#171C23; --chip:#232A33;
+  --accent:#3B63E6; --accent-text:#8FA9FF; --free:#5BD69A; --free-bg:#14301F; --muted:#8A919C; --danger:#FF8A80;
+  --hero-bg:#1E2530; --hero-ink:#F2F4F7; --hero-sub:#A9B1BD; --track:#2A313B; --stage:#080B0F; --shade:rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:var(--body);background:var(--stage);color:var(--ink);padding:24px 16px 48px;transition:background .25s}
+h1{font-family:var(--display);font-size:22px;text-align:center;color:var(--ink)}
+.note{max-width:760px;margin:8px auto 14px;text-align:center;color:var(--ink-2);font-size:14px;line-height:1.5}
+.toggle{display:block;margin:0 auto 24px;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:12px 20px;font:600 15px var(--body);cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
+.col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.cap{font-size:13px;color:var(--ink-2);max-width:320px;text-align:center}
+.phone{width:340px;height:700px;background:var(--paper);border-radius:34px;border:10px solid #05070A;overflow:hidden;position:relative;display:flex;flex-direction:column;color:var(--ink);transition:background .25s}
+.status{height:26px;font-size:11px;display:flex;justify-content:space-between;padding:6px 18px 0;color:var(--ink-2);flex:none}
+.head{padding:8px 20px 6px;display:flex;justify-content:space-between;align-items:flex-start;flex:none}
+.date{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em}
+.sub{font-size:14px;color:var(--ink-2);margin-top:2px}
+.sync{color:var(--free);font-weight:600}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--chip);color:var(--ink);display:grid;place-items:center;font:700 15px var(--display);border:1px solid var(--line);flex:none}
+.next{margin:10px 16px 6px;background:var(--hero-bg);color:var(--hero-ink);border-radius:18px;padding:16px;flex:none}
+.next .t{font-size:13px;color:var(--hero-sub);letter-spacing:.04em;text-transform:uppercase}
+.next .n{font-family:var(--display);font-weight:700;font-size:26px;margin:4px 0 8px}
+.tag{display:inline-block;background:var(--free-bg);color:var(--free);font-weight:600;font-size:13px;padding:5px 10px;border-radius:8px}
+.btn{display:block;width:100%;margin-top:14px;background:var(--accent);color:var(--accent-ink);font-family:var(--display);font-weight:700;font-size:18px;border:0;border-radius:14px;height:56px;cursor:pointer;transition:transform .12s}
+.btn:active{transform:scale(.97)}
+.list{padding:6px 16px 96px;flex:1;overflow:hidden}
+.item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);min-height:56px}
+.time{width:48px;font-family:var(--display);font-weight:700;font-size:16px;flex:none}
+.who{flex:1;font-size:16px;font-weight:500}
+.chip{font-size:12px;color:var(--ink-2);background:var(--chip);border-radius:999px;padding:4px 9px}
+.done{opacity:.55}.done .who{text-decoration:line-through}
+.libre{color:var(--muted);font-weight:400}
+.nav{height:60px;border-top:1px solid var(--line);display:flex;background:var(--card);flex:none}
+.nav div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;color:var(--muted);gap:4px;font-weight:500}
+.nav .on{color:var(--accent-text);font-weight:700}
+.bar{width:22px;height:3px;border-radius:2px;background:transparent}.on .bar{background:var(--accent-text)}
+.fab{position:absolute;right:16px;bottom:76px;background:var(--accent);color:#fff;font-family:var(--display);font-weight:700;border-radius:16px;padding:16px 20px;box-shadow:0 6px 14px rgba(0,0,0,.28);font-size:16px}
+.or{display:flex;align-items:center;gap:12px;margin:20px 0 16px;color:var(--ink-2);font-size:14px}.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}.btn2{display:block;width:100%;background:transparent;color:var(--accent-text);font-family:var(--display);font-weight:700;font-size:17px;border:2px solid var(--accent-text);border-radius:14px;height:52px;cursor:pointer}
+.seg{display:flex;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;margin-top:6px}.seg span{flex:1;text-align:center;padding:13px 0;font:600 15px var(--body);color:var(--ink-2);background:var(--card)}.seg .on2{background:var(--accent);color:#fff}.cta{margin:14px 16px 0}
+.back{padding:8px 16px;color:var(--accent-text);font-weight:600;font-size:15px;flex:none}
+.pname{font-family:var(--display);font-weight:800;font-size:26px}
+.promo{margin:14px 16px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.promo h3,.sec{font-size:13px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.big{font-family:var(--display);font-weight:800;font-size:34px;margin:4px 0 10px}
+.dots{display:flex;gap:6px}
+.dots i{flex:1;height:10px;border-radius:5px;background:var(--track)}
+.dots i.f{background:var(--accent)}.dots i.star{background:var(--free)}
+.hint{font-size:13px;color:var(--ink-2);margin-top:8px}
+.link{color:var(--danger);font-weight:600;font-size:14px}
+.pad{padding:0 16px}
+.field{margin-top:14px}
+.field label{display:block;font-size:13px;color:var(--ink-2);font-weight:600;margin-bottom:6px}
+.input{height:52px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);display:flex;align-items:center;padding:0 14px;font-size:16px}
+.input.focus{border-color:var(--accent-text)}
+.empty{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 28px 80px}
+.empty h2{font-family:var(--display);font-weight:800;font-size:28px;line-height:1.1}
+.empty p{font-size:16px;color:var(--ink-2);margin-top:10px;line-height:1.45}
+.sheetwrap{position:absolute;inset:0;background:var(--shade);display:flex;align-items:flex-end}
+.sheet{background:var(--paper);width:100%;border-radius:22px 22px 0 0;padding:14px 16px 20px;animation:up .5s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 12px}
+.sug{border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:8px}
+.sug div{padding:12px 14px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.sug div+div{border-top:1px solid var(--line)}
+.crear{color:var(--accent-text);font-weight:600}
+.hours{display:flex;gap:8px;flex-wrap:wrap}
+.hours span{min-width:72px;height:48px;border:1.5px solid var(--line);border-radius:12px;display:grid;place-items:center;font:700 16px var(--display);background:var(--card)}
+.hours .sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.scene{position:relative;flex:1}
+.card-done{margin:16px;border-radius:18px;background:var(--hero-bg);color:var(--hero-ink);padding:18px;animation:slide 6s infinite}
+@keyframes slide{0%,25%{transform:translateY(0)}40%,100%{transform:translateY(-8px)}}
+.check{width:72px;height:72px;margin:26px auto 8px;border-radius:50%;background:var(--free);display:grid;place-items:center;animation:pop 6s infinite}
+.check svg{width:40px;height:40px;stroke:#fff;stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:50;animation:draw 6s infinite}
+@keyframes pop{0%,28%{transform:scale(0);opacity:0}38%{transform:scale(1.12);opacity:1}44%,100%{transform:scale(1);opacity:1}}
+@keyframes draw{0%,32%{stroke-dashoffset:50}48%,100%{stroke-dashoffset:0}}
+.msg{text-align:center;font-family:var(--display);font-weight:700;font-size:20px;animation:fade 6s infinite}
+.msg2{text-align:center;color:var(--ink-2);font-size:14px;margin-top:4px;animation:fade 6s infinite}
+@keyframes fade{0%,38%{opacity:0;transform:translateY(6px)}52%,100%{opacity:1;transform:none}}
+.dots.anim i:nth-child(5){animation:fillnew 6s infinite}
+@keyframes fillnew{0%,45%{background:var(--track)}60%,100%{background:var(--accent)}}
+.toast{position:absolute;left:16px;right:16px;bottom:14px;background:var(--hero-bg);color:var(--hero-ink);border-radius:14px;padding:14px 16px;display:flex;justify-content:space-between;font-size:15px;animation:toast 6s infinite;border:1px solid var(--line)}
+.toast b{color:var(--accent-text)}
+@keyframes toast{0%,50%{transform:translateY(80px);opacity:0}60%,92%{transform:none;opacity:1}100%{transform:translateY(80px);opacity:0}}
+.skel{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--chip),var(--line),var(--chip));background-size:200% 100%;animation:sh 1.4s infinite linear}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}.check,.msg,.msg2,.toast{opacity:1!important;transform:none!important}.check svg{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<h1>MimateYa — boceto v2</h1>
+<p class="note">Aproximación hecha a mano en HTML/CSS (no es un mockup oficial). Fuentes guardadas en la carpeta, sin depender de internet. Usa el botón para alternar modo claro y oscuro; también sigue el modo de tu sistema.</p>
+<button class="toggle" id="t">Cambiar a modo oscuro</button>
+
+<div class="row">
+
+<div class="col"><div class="phone">
+  <div class="status"><span>09:02</span><span>● ● ▮</span></div>
+  <div style="padding:30px 20px 0"><div class="date" style="font-size:30px">Crea tu cuenta</div><div class="sub">Empieza a dejar la libreta</div></div>
+  <div class="pad">
+    <div class="field"><label>Nombre de tu barbería</label><div class="input focus">Barbería El Corte</div></div>
+    <div class="field"><label>Correo</label><div class="input">tucorreo@gmail.com</div></div>
+    <div class="field"><label>Clave</label><div class="input">••••••••</div></div>
+  </div>
+  <div style="flex:1"></div>
+  <div class="pad" style="padding-bottom:24px"><button class="btn" style="margin-top:0">Crear cuenta</button><div class="or"><span>¿Ya tienes cuenta?</span></div><button class="btn2">Iniciar sesión</button></div>
+</div><div class="cap"><b>1. Registro.</b> Pide el nombre de la barbería al inicio, como acordamos.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>09:05</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Sábado 1 de noviembre</div><div class="sub">Sin turnos todavía</div></div><div class="avatar">BC</div></div>
+  <div class="empty"><h2>Tu agenda está lista</h2><p>Agenda tu primer turno y empieza a dejar la libreta.</p></div>
+  <div class="fab">+ Nuevo turno</div>
+  <div class="nav"><div class="on">Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div>Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>2. Primer arranque.</b> Estado vacío cálido, con un solo camino: el botón flotante.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:24</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Sábado 1 de noviembre</div><div class="sub">3 turnos · <span class="sync">Sincronizado</span></div></div><div class="avatar">BC</div></div>
+  <div class="next"><div class="t">Siguiente · 10:30</div><div class="n">Carlos Pérez</div><span class="tag">Corte gratis por tiquetera</span>
+    <button class="btn" onclick="this.textContent='Completado ✓';this.style.background='#0E7A4E'">Completar corte</button></div>
+  <div class="list">
+    <div class="item done"><div class="time">09:30</div><div class="who">Andrés Gómez</div><span class="chip">✓ hecho</span></div>
+    <div class="item"><div class="time">11:15</div><div class="who">Luis Torres</div><span class="chip">Tiquetera 4/10</span></div>
+    <div class="item"><div class="time">12:00</div><div class="who libre">Libre</div></div>
+    <div class="item"><div class="time">12:45</div><div class="who">Mateo Rojas</div><span class="chip">Paquete 7</span></div>
+  </div>
+  <div class="fab">+ Nuevo turno</div>
+  <div class="nav"><div class="on">Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div>Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>3. Agenda de hoy.</b> Perfil arriba a la derecha, huecos como "Libre" y espacio al final para que el botón nunca tape un turno.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:26</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Sábado 1 de noviembre</div><div class="sub">8 turnos</div></div><div class="avatar">BC</div></div>
+  <div class="next" style="opacity:.5"><div class="t">Siguiente · 10:30</div><div class="n">Carlos Pérez</div></div>
+  <div class="sheetwrap"><div class="sheet">
+    <div class="grab"></div>
+    <div class="date" style="font-size:22px">Nuevo turno</div>
+    <div class="field"><label>Cliente</label><div class="input focus">Carl</div>
+      <div class="sug"><div><span>Carlos Pérez</span><span class="chip">Tiquetera 9/10</span></div><div class="crear">+ Crear "Carl"</div></div></div>
+    <div class="field"><label>Hora de hoy</label><div class="hours"><span>12:00</span><span class="sel">13:30</span><span>16:00</span></div></div>
+    <button class="btn">Agendar</button>
+  </div></div>
+</div><div class="cap"><b>4. Nuevo turno.</b> Solo cliente y hora. El cliente se busca o se crea ahí mismo.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:24</span><span>● ● ▮</span></div>
+  <div class="back">‹ Agenda</div>
+  <div class="pad"><div class="pname">Carlos Pérez</div><div class="sub">300 123 4567 · cliente desde marzo</div></div>
+  <div class="promo"><h3>Tiquetera</h3><div class="big">9 de 10 cortes</div>
+    <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="star"></i></div>
+    <div class="hint">El próximo corte es <b style="color:var(--free)">gratis</b>. No vence hasta que lo uses.</div></div>
+  <div class="pad" style="margin-top:16px"><div class="sec">Historial</div>
+    <div class="item"><div class="time" style="width:64px;font-size:14px">18 oct</div><div class="who" style="font-size:15px">Corte · tiquetera 9/10</div></div>
+    <div class="item"><div class="time" style="width:64px;font-size:14px">27 sep</div><div class="who" style="font-size:15px">Corte · 8/10</div><span class="link">Revertir</span></div>
+    <div class="item"><div class="time" style="width:64px;font-size:14px">06 sep</div><div class="who" style="font-size:15px">Corte · 7/10</div></div></div>
+  <div style="flex:1"></div>
+  <div class="nav"><div>Agenda<span class="bar"></span></div><div class="on">Clientes<span class="bar"></span></div><div>Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>5. Ficha del cliente.</b> Saldo de un vistazo y cada movimiento se puede revertir.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:30</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Promos</div><div class="sub">2 planes · 3 clientes con saldo</div></div><div class="avatar">BC</div></div>
+  <div class="pad"><div class="sec" style="margin-top:8px">Planes</div>
+    <div class="item"><div class="who">Tiquetera<div style="font-size:13px;color:var(--ink-2)">Cada 10 cortes, el 11 es gratis</div></div></div>
+    <div class="item"><div class="who">Paquete<div style="font-size:13px;color:var(--ink-2)">10 cortes por $150.000</div></div></div>
+    <div class="sec" style="margin-top:18px">Con saldo</div>
+    <div class="item"><div class="who">Carlos Pérez</div><span class="tag" style="font-size:12px">Gratis pendiente</span></div>
+    <div class="item"><div class="who">Luis Torres</div><span class="chip">Tiquetera 4/10</span></div>
+    <div class="item"><div class="who">Mateo Rojas</div><span class="chip">Paquete 7</span></div></div>
+  <div class="fab" style="bottom:76px">+ Nuevo plan</div>
+  <div style="flex:1"></div>
+  <div class="nav"><div>Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div class="on">Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>6. Promos.</b> Planes que crea y clientes con saldo; los gratis pendientes primero.</div></div>
+
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:32</span><span>● ● ▮</span></div>
+  <div class="back">‹ Promos</div>
+  <div class="pad"><div class="date" style="font-size:26px">Nuevo plan</div>
+    <div class="field"><label>Tipo</label><div class="seg"><span>Tiquetera</span><span class="on2">Paquete</span></div></div>
+    <div class="field"><label>Nombre</label><div class="input focus">Paquete 10 cortes</div></div>
+    <div class="field"><label>Cortes incluidos</label><div class="input">10</div></div>
+    <div class="field"><label>Precio</label><div class="input">$150.000</div></div></div>
+  <div style="flex:1"></div>
+  <div class="pad" style="padding-bottom:24px"><button class="btn" style="margin-top:0">Guardar plan</button></div>
+</div><div class="cap"><b>7. Nuevo plan.</b> Elige el tipo y pide solo lo necesario. Para tiquetera: nombre y cada cuántos cortes es gratis.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:34</span><span>● ● ▮</span></div>
+  <div class="back">‹ Promos</div>
+  <div class="pad"><div class="pname">Paquete</div><div class="sub">10 cortes por $150.000</div></div>
+  <div class="cta"><button class="btn" style="margin-top:0">Vender a un cliente</button></div>
+  <div class="pad" style="margin-top:18px"><div class="sec">Clientes con este plan · 2</div>
+    <div class="item"><div class="who">Mateo Rojas</div><span class="chip">7 cortes</span></div>
+    <div class="item"><div class="who">Sergio Díaz</div><span class="chip">2 cortes</span></div></div>
+  <div style="flex:1"></div>
+  <div class="nav"><div>Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div class="on">Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>8. Detalle de un plan.</b> Solo los clientes que lo tienen, con su saldo, y el botón para vender.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:36</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Paquete</div><div class="sub">10 cortes por $150.000</div></div></div>
+  <div class="sheetwrap"><div class="sheet">
+    <div class="grab"></div>
+    <div class="date" style="font-size:22px">Vender paquete</div>
+    <div class="field"><label>Cliente</label><div class="input focus">Mat</div>
+      <div class="sug"><div><span>Mateo Rojas</span><span class="chip">Paquete 7</span></div><div class="crear">+ Crear "Mat"</div></div></div>
+    <div class="hint" style="margin-top:14px;font-size:14px">10 cortes · $150.000 · se registra como pagado</div>
+    <button class="btn">Registrar venta</button>
+  </div></div>
+</div><div class="cap"><b>9. Vender un plan.</b> Se busca o se crea al cliente, y registrar la venta significa que ya pagó.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:41</span><span>● ● ▮</span></div>
+  <div class="scene">
+    <div class="card-done"><div style="font-size:13px;color:var(--hero-sub);text-transform:uppercase;letter-spacing:.04em">10:30 · Carlos Pérez</div>
+      <div class="big" style="font-size:26px;margin:6px 0;color:var(--hero-ink)">Corte gratis</div>
+      <div class="dots anim"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i></div></div>
+    <div class="check"><svg viewBox="0 0 40 40"><path d="M8 21 l8 8 l16 -18"/></svg></div>
+    <div class="msg">Corte completado</div><div class="msg2">Tiquetera de Carlos: reiniciada</div>
+    <div class="toast"><span>Corte completado</span><b>Deshacer</b></div>
+  </div>
+  <div class="nav"><div class="on">Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div>Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>10. Completar (animación).</b> Tarjeta sube, el check se dibuja, la barra se llena y aparece "Deshacer" unos segundos.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:24</span><span>● ● ▮</span></div>
+  <div class="head"><div><div class="date">Sábado 1 de noviembre</div><div class="sub">Cargando…</div></div><div class="avatar">BC</div></div>
+  <div class="pad" style="margin-top:16px;display:flex;flex-direction:column;gap:16px">
+    <div class="skel" style="height:150px;border-radius:18px"></div>
+    <div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div>
+  <div style="flex:1"></div>
+  <div class="nav"><div class="on">Agenda<span class="bar"></span></div><div>Clientes<span class="bar"></span></div><div>Promos<span class="bar"></span></div></div>
+</div><div class="cap"><b>11. Cargando.</b> Barras con brillo suave donde irán los turnos.</div></div>
+
+<div class="col"><div class="phone">
+  <div class="status"><span>10:50</span><span>● ● ▮</span></div>
+  <div class="back">‹ Agenda</div>
+  <div class="pad"><div class="date" style="font-size:26px">Perfil</div></div>
+  <div class="pad"><div class="field"><label>Nombre de la barbería</label><div class="input focus">Barbería El Corte</div></div>
+    <div class="field"><label>Correo</label><div class="input" style="color:var(--ink-2)">tucorreo@gmail.com</div></div></div>
+  <div style="flex:1"></div>
+  <div class="pad" style="padding-bottom:24px"><div style="text-align:center;color:var(--danger);font-weight:700;font-size:16px;padding:14px">Cerrar sesión</div></div>
+</div><div class="cap"><b>12. Perfil.</b> Se llega desde el ícono de arriba a la derecha. Cambia el nombre y cierra sesión.</div></div>
+
+</div>
+<script>
+const b=document.getElementById('t'),r=document.documentElement;
+function set(d){r.dataset.theme=d?'dark':'light';b.textContent=d?'Cambiar a modo claro':'Cambiar a modo oscuro'}
+set(location.hash==='#dark'||(!location.hash&&matchMedia('(prefers-color-scheme: dark)').matches));
+b.onclick=()=>set(r.dataset.theme!=='dark');
+</script>
+</body>
+</html>
