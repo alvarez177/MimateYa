@@ -21,10 +21,14 @@ Mockups oficiales (HTML con 12 pantallas, modo claro y oscuro): `docs/designs/mo
 
 ## Decisiones ya tomadas (no reabrir sin evidencia nueva)
 - Arquitectura: Clean Architecture, MVI, Hilt. Módulos por feature (`:feature:agenda`, `:feature:clients`, `:feature:promos`) más `:core` y `:app`; dentro de cada feature, paquetes `domain`, `data` y `presentation`.
+- Flujo de capas (preferencia del usuario): `ViewModel` → `UseCase` → `Repository` → `DataSource`. La interfaz del repositorio vive en `domain`; su implementación y los `DataSource` (Firestore hoy, Room después) viven en `data`. El `DataSource` existe para probar repositorios con MockK sin Firebase y para separar fuente remota y local. Casos de uso solo donde haya lógica; si uno solo reenviaría la llamada, se le plantea al usuario antes de crearlo.
 - Backend: Firebase (Auth con email y contraseña, Firestore) con tres ambientes: dev, QA y prod.
 - Descuento único: el ledger de movimientos es la única fuente de verdad, con ids fijos (turno + tipo); el saldo lo calcula `PromoEngine`; revertir agrega un movimiento inverso.
+- Concurrencia: corrutinas y `Flow` (preferencia del usuario). Casos de uso como funciones `suspend`; estado de pantalla en `StateFlow` leído con `collectAsStateWithLifecycle()`; `viewModelScope` en los ViewModels; despachadores (`Dispatchers`) inyectados con Hilt, nunca escritos dentro del código; pruebas con `runTest` de `kotlinx-coroutines-test`. Las dependencias de corrutinas se agregan cuando el paso que las usa las necesite.
 - Manejo de errores claro y organizado: `AppError`, `AppResult` y un solo mapeador de excepciones de Firebase.
 - Pruebas: solo unitarias con MockK (repositorios, dominio y ViewModels), nada que toque Firebase, y TDD: primero los comportamientos de negocio y sus pruebas, después el código.
+- Pruebas explícitas: no usar comodines de MockK como `any()` salvo que sea el único camino; verificar con los valores concretos esperados, y para "nunca se llamó" usar `verify { mock wasNot Called }`.
+- Nombres de pruebas unitarias: estilo `given ... when ... then ...` con backticks, legibles como una frase, por ejemplo `` `given wrong password when the user tries to login then should fail` ``.
 - Diseño: tokens, tipografía local y pantallas según los mockups oficiales.
 - Fuera de la v1: referidos, importar datos, Room y sincronización propia, turnos solapados, accesibilidad, reserva por parte del cliente, iOS.
 

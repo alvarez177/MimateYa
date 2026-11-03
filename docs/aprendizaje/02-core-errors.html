@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 2: manejo de errores — qué hicimos y por qué</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+</style>
+</head>
+<body>
+<h1>Paso 2: manejo de errores</h1>
+<p class="sub">Rama <code>feature/core-errors</code> · módulo <code>:core</code> · hecho con TDD</p>
+
+<h2>1. El problema que resuelve</h2>
+<p>Cuando algo falla (se cae el internet, la clave está mal, el cliente ya no existe), el código normalmente lanza una <strong>excepción</strong>. Si cada pantalla tiene su propio <code>try/catch</code>, pasan cosas malas: unas atrapan todo y esconden errores reales, otras no atrapan nada y la app se cierra, y los mensajes quedan escritos por todas partes con distinto texto.</p>
+<p>Tu preferencia fue tener el manejo de errores <strong>claro y organizado</strong>. La idea es esta, en tres movimientos:</p>
+<pre><code>excepción  ──(ErrorMapper)──▶  AppError  ──(ErrorMessageMapper)──▶  texto en español
+  (en la capa data)           (tipado)                              (en la capa presentación)</code></pre>
+
+<h2>2. Las piezas</h2>
+<table>
+  <tr><th>Clase</th><th>Qué hace</th></tr>
+  <tr><td><code>AppError</code></td><td>La lista cerrada de errores que la app conoce: <code>Network</code>, <code>InvalidCredentials</code>, <code>Validation(campo)</code>, <code>NotFound</code>, <code>Conflict</code> y <code>Unknown(causa)</code>.</td></tr>
+  <tr><td><code>AppResult&lt;T&gt;</code></td><td>"Salió bien con un valor" (<code>Success</code>) o "falló con un <code>AppError</code>" (<code>Failure</code>). Los casos de uso devuelven esto en vez de lanzar excepciones.</td></tr>
+  <tr><td><code>ErrorMapper</code></td><td>El <strong>único lugar</strong> donde una excepción se convierte en <code>AppError</code>.</td></tr>
+  <tr><td><code>appResultOf(mapper) { ... }</code></td><td>Ejecuta un bloque y lo envuelve en <code>AppResult</code>.</td></tr>
+  <tr><td><code>ErrorMessageMapper</code></td><td>El <strong>único lugar</strong> que decide qué texto ve el barbero para cada error.</td></tr>
+</table>
+
+<h2>3. Código clave, explicado</h2>
+
+<h3>3.1 Una interfaz sellada: <code>sealed interface AppError</code></h3>
+<pre><code>sealed interface AppError {
+    data object Network : AppError
+    data class Validation(val field: ValidationField) : AppError
+    data class Unknown(val cause: Throwable? = null) : AppError
+    ...
+}</code></pre>
+<p><strong>Sellada</strong> significa que todos los tipos posibles están en este archivo y el compilador los conoce. Cuando haces un <code>when (error)</code>, Kotlin te obliga a cubrir <em>todos</em>; si mañana agregas un error nuevo y se te olvida manejarlo, <strong>no compila</strong>. Es la mejor protección contra "se me olvidó ese caso".</p>
+<p><code>data object</code> es para errores sin datos (<code>Network</code>); <code>data class</code> para los que cargan información (<code>Validation</code> sabe qué campo falló; <code>Unknown</code> guarda la causa para el registro).</p>
+<div class="box tip"><code>Unknown</code> guarda la excepción original pero <strong>nunca se muestra</strong> al barbero. Se ve "Algo salió mal", y la causa queda disponible para depurar. Hay una prueba que lo verifica.</div>
+
+<h3>3.2 <code>AppResult</code> y <code>resolve</code></h3>
+<pre><code>inline fun &lt;T, R&gt; AppResult&lt;T&gt;.resolve(transform: (T) -&gt; R): AppResult&lt;R&gt; = when (this) {
+    is AppResult.Success -&gt; AppResult.Success(transform(value))
+    is AppResult.Failure -&gt; this
+}</code></pre>
+<p><code>resolve</code> transforma el valor <em>solo si salió bien</em>; si falló, deja pasar el mismo error sin ejecutar nada. Funciona como el <code>map</code> de las listas, con otro nombre para no confundirlos. Es la única función que tiene <code>AppResult</code>: no construimos una librería entera por si acaso. Para "hacer una cosa si salió bien y otra si falló" basta un <code>when</code> sobre el resultado (ver sección 5).</p>
+
+<h3>3.3 Mapeo en un solo lugar</h3>
+<pre><code>class DefaultErrorMapper : ErrorMapper {
+    override fun map(throwable: Throwable): AppError = when (throwable) {
+        is IOException -&gt; AppError.Network
+        else -&gt; AppError.Unknown(throwable)
+    }
+}</code></pre>
+<p>En Java/Kotlin, <code>SocketTimeoutException</code> y <code>UnknownHostException</code> son subtipos de <code>IOException</code>, por eso con una sola rama cubrimos "sin internet", "se agotó el tiempo" y "no encontró el servidor". Los errores de Firebase se agregan en el Paso 6 <em>envolviendo</em> este mapeador, así <code>:core</code> nunca depende de Firebase.</p>
+
+<h3>3.4 <code>appResultOf</code> y la cancelación: el detalle más fino</h3>
+<pre><code>inline fun &lt;T&gt; appResultOf(mapper: ErrorMapper, block: () -&gt; T): AppResult&lt;T&gt; =
+    try {
+        AppResult.Success(block())
+    } catch (cancellation: CancellationException) {
+        throw cancellation          // ← NO se convierte en error
+    } catch (throwable: Throwable) {
+        AppResult.Failure(mapper.map(throwable))
+    }</code></pre>
+<div class="box warn">Las <strong>corrutinas</strong> (el sistema para trabajo en segundo plano) se cancelan lanzando una <code>CancellationException</code>. Si un <code>catch</code> general la atrapa y la convierte en "error desconocido", la cancelación nunca llega y la pantalla puede quedarse trabajando para nadie. Por eso se <strong>vuelve a lanzar</strong>. Tiene su propia prueba.</div>
+<p>Este es el motivo de fondo de la regla "nada de <code>catch (Exception)</code> suelto": un catch general parece inofensivo y rompe cosas sutiles. Aquí hay <em>un</em> catch, en <em>un</em> lugar, escrito con cuidado.</p>
+
+<h3>3.5 Mensajes en un solo lugar</h3>
+<pre><code>class ErrorMessageMapper {
+    fun messageFor(error: AppError): ErrorMessage = ErrorMessage(
+        when (error) {
+            AppError.Network -&gt; R.string.error_network
+            is AppError.Validation -&gt; when (error.field) { ... }
+            is AppError.Unknown -&gt; R.string.error_unknown
+            ...
+        }
+    )
+}</code></pre>
+<p>Devuelve un <strong>id de recurso</strong> (<code>R.string.error_network</code>), no el texto. La pantalla lo convierte en texto con el contexto de Android. Así este código se prueba en la JVM sin emulador, y los textos viven en <code>core/src/main/res/values/strings.xml</code>, en español, todos juntos.</p>
+
+<h2>4. Cómo se hizo: TDD</h2>
+<ol>
+  <li><strong>Tabla de comportamientos</strong> (en el chat): tú la aprobaste y quitaste "sesión expirada".</li>
+  <li><strong>Pruebas primero:</strong> escribí 16 pruebas en 4 archivos y las corrí. Resultado: <em>rojo</em> (no compilaba, porque las clases no existían). Ese rojo es la prueba de que las pruebas dependen del código que falta.</li>
+  <li><strong>Código mínimo</strong> para que pasen: <em>verde</em>, 16 de 16.</li>
+</ol>
+
+<h3>Cómo se nombran las pruebas</h3>
+<p>Cada prueba se llama como una frase: <code>given</code> (el punto de partida), <code>when</code> (lo que se hace) y <code>then</code> (lo que debe pasar). Entre comillas invertidas (<code>`...`</code>) Kotlin permite espacios en el nombre, así que el reporte de pruebas se lee solo, sin abrir el código.</p>
+<h3>MockK en acción</h3>
+<pre><code>private val mapper = mockk&lt;ErrorMapper&gt;()
+
+@Test
+fun `given a block that throws when running appResultOf then should return a failure with the mapped error`() {
+    val boom = RuntimeException("boom")
+    every { mapper.map(boom) } returns AppError.Conflict   // "cuando te pasen boom, responde Conflict"
+
+    val result = appResultOf(mapper) { throw boom }
+
+    assertEquals(AppResult.Failure(AppError.Conflict), result)
+    verify(exactly = 1) { mapper.map(boom) }                // "y confirma que te llamaron una vez"
+}</code></pre>
+<p><code>every { ... } returns ...</code> le enseña al falso qué responder; <code>verify</code> comprueba qué se le preguntó. En la prueba de cancelación usamos <code>verify { mapper wasNot Called }</code>: el mapeador <em>nunca</em> debe ser llamado. Preferimos esa forma a <code>verify(exactly = 0) { mapper.map(any()) }</code> porque es explícita y no usa comodines.</p>
+
+<table>
+  <tr><th>Archivo de prueba</th><th>Qué protege</th><th>Pruebas</th></tr>
+  <tr><td><code>AppResultTest</code></td><td><code>resolve</code> en éxito y en fallo</td><td>2</td></tr>
+  <tr><td><code>DefaultErrorMapperTest</code></td><td>IO, timeout y host desconocido son <code>Network</code>; lo inesperado es <code>Unknown</code> y conserva la causa</td><td>4</td></tr>
+  <tr><td><code>AppResultOfTest</code></td><td>éxito, fallo mapeado y <strong>cancelación que se propaga</strong></td><td>3</td></tr>
+  <tr><td><code>ErrorMessageMapperTest</code></td><td>cada error tiene su mensaje, uno por campo de validación, y <code>Unknown</code> no filtra la causa</td><td>7</td></tr>
+</table>
+
+<h2>5. Cómo se usará más adelante</h2>
+<pre><code>// En un caso de uso (paso 4 en adelante)
+suspend fun createClient(...): AppResult&lt;Client&gt; =
+    appResultOf(errorMapper) { dataSource.save(...) }
+
+// En un ViewModel
+when (result) {
+    is AppResult.Success -&gt; state = state.copy(client = result.value)
+    is AppResult.Failure -&gt; effect(ShowMessage(messages.messageFor(result.error)))
+}</code></pre>
+<p>La pantalla nunca ve una excepción: solo un <code>AppError</code> y un mensaje ya listo.</p>
+
+<h2>6. Qué no hicimos a propósito</h2>
+<ul>
+  <li><strong>No hay error de sesión expirada</strong> (lo quitaste): se agrega cuando exista algo que expire la sesión.</li>
+  <li><strong>No hay mapeo de Firebase todavía</strong>: llega en el Paso 6.</li>
+  <li><strong>No hay registro (log) de errores</strong>: la causa de <code>Unknown</code> queda guardada, pero dónde se escribe se decide cuando haya algo que registrar.</li>
+  <li><strong>El mapeador no está conectado a Hilt todavía</strong>: se conecta cuando el primer ViewModel lo necesite.</li>
+</ul>
+
+<h2>7. Cómo probarlo tú</h2>
+<pre><code>./gradlew :core:testDebugUnitTest</code></pre>
+<p>Debe decir <code>BUILD SUCCESSFUL</code>. Para ver el "rojo" tú mismo: en <code>ErrorMapper.kt</code> cambia <code>is IOException -&gt; AppError.Network</code> por <code>AppError.Unknown(throwable)</code> y corre las pruebas: fallan tres, que es justo lo que esa línea protege. Luego deshaz el cambio.</p>
+</body>
+</html>

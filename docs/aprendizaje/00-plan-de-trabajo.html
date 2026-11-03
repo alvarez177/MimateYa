@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MimateYa v1 — plan de trabajo paso a paso</title>
+<style>
+  :root{--ink:#12161C;--ink2:#4A5260;--line:#E3E5E8;--paper:#FAFAF8;--card:#fff;--accent:#1D4ED8;--ok:#0E7A4E;--okbg:#DDF3E8;--wip:#B45309;--wipbg:#FEF0D6;--todo:#4A5260;--todobg:#EEF0F3}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;max-width:940px;margin:28px auto;padding:0 18px 60px;color:var(--ink);line-height:1.6;background:var(--paper)}
+  h1{font-size:30px;margin:0 0 4px} h2{margin-top:42px;border-bottom:2px solid var(--line);padding-bottom:6px}
+  .sub{color:var(--ink2);margin-top:0}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#EEF0F3;padding:2px 5px;border-radius:4px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto;font-size:13px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid var(--accent)}
+  .pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .terminado{background:var(--okbg);color:var(--ok)} .progreso{background:var(--wipbg);color:var(--wip)} .sin{background:var(--todobg);color:var(--todo)}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin:14px 0}
+  .step h3{margin:0 0 4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:18px}
+  .num{background:var(--ink);color:#fff;border-radius:8px;padding:2px 10px;font-size:14px}
+  .meta{font-size:13px;color:var(--ink2);margin:2px 0 8px}
+  .step p{margin:6px 0} .step ul{margin:6px 0 6px 20px;padding:0}
+  .learn{font-size:14px;color:var(--ink2)} .you{font-size:14px;color:var(--wip)}
+  table{border-collapse:collapse;width:100%;font-size:14px} th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top} th{background:#EEF0F3}
+  .lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+</style>
+</head>
+<body>
+<h1>MimateYa v1 — plan de trabajo paso a paso</h1>
+<p class="sub">Para leer con calma. La fuente de verdad del avance es <code>docs/EJECUCION.md</code>; este documento la explica. Actualizado el 2026-11-02.</p>
+
+<h2>1. Dónde vamos</h2>
+<div class="box tip">
+  <p><span class="pill terminado">terminado</span> Paso 1, base del proyecto (integrado en <code>develop</code>, PR #1).<br>
+  <span class="pill progreso">en progreso</span> Paso 2, manejo de errores en <code>:core</code> (rama <code>feature/core-errors</code>).<br>
+  <span class="pill sin">sin empezar</span> Del 3 al 16.</p>
+</div>
+
+<h2>2. Cómo trabajamos (reglas que valen para todos los pasos)</h2>
+<table>
+  <tr><th>Regla</th><th>Qué significa en la práctica</th></tr>
+  <tr><td>Una rama por paso</td><td>Cada paso vive en <code>feature/&lt;nombre&gt;</code>, creada desde <code>develop</code>. Nunca se trabaja directo en <code>develop</code>.</td></tr>
+  <tr><td>Máximo 25 archivos</td><td>Cuenta lo nuevo y lo modificado, con tests y recursos; <strong>los HTML no cuentan</strong>. Si para que compile hace falta más, te pregunto antes.</td></tr>
+  <tr><td>TDD</td><td>Primero la tabla de comportamientos y las pruebas (MockK, sin Firebase); después el código.</td></tr>
+  <tr><td>Sin commit sin tu aprobación</td><td>Te muestro el resumen y el mensaje; commit solo cuando lo autorices. Va a tu nombre, sin mención mía.</td></tr>
+  <tr><td>Pull request</td><td>Solo cuando me lo pides, hacia <code>develop</code>, con descripción detallada. Lo integras tú con <em>Squash and merge</em>.</td></tr>
+  <tr><td>Un HTML por paso</td><td>Explica el código y el porqué, para que aprendas. Se puede pedir otro HTML sobre cualquier tema.</td></tr>
+  <tr><td>Estados</td><td><code>sin empezar</code>, <code>en progreso</code>, <code>terminado</code>, siempre actualizados en <code>EJECUCION.md</code> para poder retomar si se cierra la sesión.</td></tr>
+  <tr><td>Idioma</td><td>Conversación en español; código, ramas y commits en inglés.</td></tr>
+</table>
+
+<h2>3. Cuidado con la recomposición (Compose)</h2>
+<p>Recomponer es volver a dibujar un composable. Si ocurre de más, la app se siente lenta. Reglas que aplico en cada pantalla:</p>
+<ul>
+  <li>Un <code>UiState</code> inmutable por pantalla (<code>data class</code> con <code>val</code>) y listas con <code>ImmutableList</code>.</li>
+  <li>Se observa con <code>collectAsStateWithLifecycle()</code>; los hijos reciben solo lo que necesitan.</li>
+  <li><code>LazyColumn</code> con <code>key</code> (el id del turno o cliente).</li>
+  <li><code>derivedStateOf</code> para valores calculados, como "siguiente turno".</li>
+  <li>Animaciones que leen el estado lo más tarde posible.</li>
+  <li>Se mide con los reportes del compilador de Compose y el contador de recomposiciones del Layout Inspector.</li>
+</ul>
+
+<h2>4. Los pasos, en orden</h2>
+<p class="sub">El orden respeta dependencias: primero todo lo que se prueba sin Firebase (pasos 2 a 4), luego el diseño y Firebase, y al final las pantallas.</p>
+
+<div class="step"><h3><span class="num">1</span> Base del proyecto <span class="pill terminado">terminado</span></h3>
+<div class="meta"><code>feature/project-setup</code> · integrado en develop</div>
+<p>Módulos <code>:app</code>, <code>:core</code> y tres features; Hilt con KSP; ambientes dev, QA y prod con nombre e icono propios; MockK e inmutables.</p>
+<p class="learn">Aprendes: módulos, catálogo de versiones, inyección de dependencias, product flavors. Ver <code>01-project-setup.html</code>.</p></div>
+
+<div class="step"><h3><span class="num">2</span> Manejo de errores <span class="pill progreso">en progreso</span></h3>
+<div class="meta"><code>feature/core-errors</code> · depende de 1 · ~10 archivos</div>
+<p><code>AppError</code> (errores tipados), <code>AppResult</code> (éxito o fallo), <code>ErrorMapper</code> (convierte excepciones en errores tipados) y <code>ErrorMessageMapper</code> (mensajes en español para el barbero). Tu preferencia de errores claros y organizados.</p>
+<p class="learn">Aprendes: clases selladas, por qué no se usa <code>catch (Exception)</code> suelto, pruebas con MockK.</p></div>
+
+<div class="step"><h3><span class="num">3</span> Motor de promos <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/promo-engine</code> · depende de 2 · ~10 archivos</div>
+<p>Tabla de comportamientos (<code>docs/comportamientos-promos.md</code>), modelos de dominio y <code>PromoEngine</code>: tiquetera (el N+1 es gratis y no vence), paquete prepago y saldo cero. Kotlin puro, sin Android.</p>
+<p class="learn">Aprendes: TDD de verdad, y por qué el saldo se calcula y no se guarda.</p></div>
+
+<div class="step"><h3><span class="num">4</span> Casos de uso de promos <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/promo-use-cases</code> · depende de 3 · ~10 archivos</div>
+<p><code>LedgerRepository</code> (interfaz), <code>CompleteCut</code> con id fijo (completar dos veces descuenta una vez) y <code>RevertCut</code> con movimiento inverso.</p>
+<p class="learn">Aprendes: idempotencia y por qué "deshacer" agrega un movimiento en lugar de borrar.</p></div>
+
+<div class="step"><h3><span class="num">5</span> Sistema de diseño <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/design-system</code> · depende de 1 · ~14 archivos</div>
+<p>Tema claro y oscuro con los colores aprobados, fuentes locales (Bricolage Grotesque y Figtree), adiós al morado de la plantilla.</p>
+<p class="you">Una decisión tuya: las fuentes del boceto están en <code>.woff2</code> y Android necesita <code>.ttf</code>; descargo las versiones TTF (licencia libre) y te aviso.</p>
+<p class="learn">Aprendes: <code>MaterialTheme</code>, tokens de diseño, <code>res/font</code>.</p></div>
+
+<div class="step"><h3><span class="num">6</span> Firebase <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/firebase-setup</code> · depende de 2 · ~12 archivos</div>
+<p>Tres proyectos Firebase (dev, QA, prod), Auth y Firestore conectados, un <code>DataSource</code> propio y el mapeo de excepciones de Firebase a <code>AppError</code>.</p>
+<p class="you">Paso manual tuyo: crear los tres proyectos en la consola de Firebase. Decidimos juntos si <code>google-services.json</code> va en el repositorio.</p>
+<p class="learn">Aprendes: cómo se separan los datos por ambiente y por qué escondemos Firebase detrás de una interfaz.</p></div>
+
+<div class="step"><h3><span class="num">6b</span> Distribución de versiones <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/app-distribution</code> · depende de 6</div>
+<p>Firebase App Distribution: subes dev, QA y prod desde la terminal y las descargas con la app Firebase App Tester. Incluye la llave de firma de prod.</p>
+<p class="you">Pasos manuales tuyos: iniciar sesión en Firebase CLI, crear el grupo de testers y <strong>guardar la llave y su contraseña con copia de seguridad</strong>. Si la pierdes no podrás actualizar esa app.</p>
+<p class="learn">Aprendes: firma de apps y por qué no puede cambiar entre versiones.</p></div>
+
+<div class="step"><h3><span class="num">7</span> Registro e inicio de sesión <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/auth</code> · depende de 5 y 6 · ~22 archivos</div>
+<p>Registro con el nombre de la barbería, correo y contraseña; inicio de sesión; MVI; navegación inicial.</p>
+<p class="learn">Aprendes: MVI con <code>Intent</code>, <code>State</code> y <code>Effect</code>; ViewModels con Hilt; la primera pantalla real.</p></div>
+
+<div class="step"><h3><span class="num">8</span> Clientes <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/clients</code> · depende de 4 y 6 · ~20 archivos</div>
+<p>Crear y buscar clientes por teléfono, ficha con saldo e historial, y "Revertir".</p></div>
+
+<div class="step"><h3><span class="num">9</span> Datos de la agenda <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/agenda-data</code> · depende de 6 y 8 · ~14 archivos</div>
+<p>Modelo de turno, repositorio y casos de uso, con la hora guardada en UTC y mostrada en hora de Bogotá. Pruebas primero, incluido un turno a las 23:30.</p>
+<p class="learn">Aprendes: por qué se guarda el tiempo en UTC.</p></div>
+
+<div class="step"><h3><span class="num">10</span> Pantalla de agenda <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/agenda-ui</code> · depende de 7 y 9 · ~22 archivos</div>
+<p>Agenda de hoy, "Nuevo turno" (cliente y hora), botón flotante sin tapar la lista, estados cargando, vacío y error, según los mockups.</p>
+<p class="learn">Aprendes: <code>LazyColumn</code> con <code>key</code>, <code>ModalBottomSheet</code> y medir recomposiciones.</p></div>
+
+<div class="step"><h3><span class="num">11</span> Completar corte <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/complete-cut</code> · depende de 4 y 10 · ~14 archivos</div>
+<p>Completar conectado al ledger, animación (tarjeta, check, barra), "Deshacer" 6 segundos y aviso de corte gratis, con reducción de movimiento.</p>
+<p class="learn">Aprendes: animaciones en Compose sin recomponer de más.</p></div>
+
+<div class="step"><h3><span class="num">12</span> Planes de promos <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/promos-plans</code> · depende de 4 y 8 · ~18 archivos</div>
+<p>Pestaña Promos: lista de planes, crear y editar tiquetera y paquete, detalle por plan.</p></div>
+
+<div class="step"><h3><span class="num">13</span> Vender un plan <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/promos-sell</code> · depende de 12 · ~12 archivos</div>
+<p>Vender un plan a un cliente (registrar la venta significa que ya pagó) y ver los clientes con saldo.</p></div>
+
+<div class="step"><h3><span class="num">14</span> Perfil <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/profile-settings</code> · depende de 7 · ~10 archivos</div>
+<p>Cambiar el nombre de la barbería y cerrar sesión.</p></div>
+
+<div class="step"><h3><span class="num">15</span> Listo para producción <span class="pill sin">sin empezar</span></h3>
+<div class="meta"><code>feature/prod-readiness</code> · depende de 6 y 11 · ~6 archivos</div>
+<p>Reglas de seguridad de Firestore por negocio, lista manual de verificación, <strong>versionamiento</strong> (versión inicial, <code>versionCode</code> calculado, etiqueta de git, <code>CHANGELOG.md</code>) y registrar en Play App Signing la misma llave de App Tester.</p></div>
+
+<div class="step"><h3><span class="num">16</span> Validación con el barbero <span class="pill sin">sin empezar</span></h3>
+<div class="meta">depende de 11 y 13</div>
+<p>Pruebas con el barbero real: semántica de promos, aviso de corte gratis y flujo diario. Criterio de éxito: dos semanas sin la libreta ni el Google Doc.</p></div>
+
+<h2>5. Qué se puede hacer en paralelo</h2>
+<div class="lanes">
+  <div class="box"><strong>Dominio sin Firebase</strong><br>2 → 3 → 4. Todo se prueba en la JVM, sin emulador.</div>
+  <div class="box"><strong>Diseño</strong><br>5 depende solo del 1; se puede hacer cuando quieras.</div>
+  <div class="box"><strong>Datos en la nube</strong><br>6 → 6b. Requiere tus pasos manuales en Firebase.</div>
+</div>
+<p class="sub">En la práctica avanzamos de uno en uno, para revisar contigo cada paso. Esto solo muestra qué no depende de qué.</p>
+
+<h2>6. Lo que ya está decidido</h2>
+<ul>
+  <li><strong>Arquitectura:</strong> Clean Architecture, MVI, Hilt; módulos por feature con paquetes <code>domain</code>, <code>data</code> y <code>presentation</code>.</li>
+  <li><strong>Descuento único:</strong> el historial de movimientos (ledger) es la fuente de verdad, con ids fijos; el saldo se calcula; revertir agrega un movimiento inverso.</li>
+  <li><strong>Pruebas:</strong> solo unitarias con MockK, nada que toque Firebase, TDD.</li>
+  <li><strong>Diseño:</strong> mockups oficiales en <code>docs/designs/mockups/v2.html</code>, modo claro y oscuro, tipografía local.</li>
+  <li><strong>Fuera de la v1:</strong> referidos, importar datos, Room, turnos solapados, accesibilidad, reserva por el cliente, iOS (están en <code>TODOS.md</code>).</li>
+</ul>
+
+<h2>7. Decisiones que te pediré en el camino</h2>
+<table>
+  <tr><th>Paso</th><th>Decisión o acción tuya</th></tr>
+  <tr><td>2</td><td>Aprobar la tabla de comportamientos de errores (la tienes en el chat)</td></tr>
+  <tr><td>3</td><td>Aprobar la tabla de comportamientos de promos antes de escribir pruebas</td></tr>
+  <tr><td>5</td><td>Fuentes en TTF</td></tr>
+  <tr><td>6</td><td>Crear los tres proyectos de Firebase; ¿<code>google-services.json</code> en el repositorio?</td></tr>
+  <tr><td>6b</td><td>Iniciar sesión en Firebase CLI, grupo de testers y guardar la llave de firma</td></tr>
+  <tr><td>16</td><td>Probar con el barbero</td></tr>
+</table>
+</body>
+</html>
