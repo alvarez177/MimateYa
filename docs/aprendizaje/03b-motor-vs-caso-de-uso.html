@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 3b: PromoEngine vs. caso de uso — en qué se diferencian</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318} .ok{border-left:4px solid #0E7A4E}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media(max-width:640px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>PromoEngine vs. caso de uso</h1>
+<p class="sub">Complemento del Paso 3 · los dos viven en el paquete <code>domain</code>, pero hacen trabajos distintos</p>
+
+<div class="box tip">
+<p><strong>En una frase:</strong> <code>PromoEngine</code> <em>sabe las reglas</em>; un caso de uso <em>ejecuta una acción de la app</em> y usa esas reglas.</p>
+</div>
+
+<h2>1. Con plastilina: la calculadora y el cajero</h2>
+<div class="two">
+<div class="box ok">
+<h3>🧮 <code>PromoEngine</code> = la calculadora</h3>
+<p>Le das la promo del cliente y su lista de cortes, y te responde: <em>"va 4 de 10"</em> o <em>"el próximo es gratis"</em>.</p>
+<ul>
+  <li>No sabe de dónde salieron los datos.</li>
+  <li>No guarda nada.</li>
+  <li>No espera a nadie: responde al instante.</li>
+  <li>Con los mismos datos, responde <strong>siempre lo mismo</strong>.</li>
+</ul>
+</div>
+<div class="box tip">
+<h3>🧑‍💼 Caso de uso = el cajero</h3>
+<p>Recibe una orden: <em>"completa el turno de Juan"</em>. Entonces:</p>
+<ol>
+  <li>Busca los datos (al repositorio).</li>
+  <li>Le pregunta a la calculadora.</li>
+  <li>Guarda el resultado.</li>
+  <li>Te dice si salió bien o mal.</li>
+</ol>
+</div>
+</div>
+
+<h2>2. Dónde encaja cada uno</h2>
+<pre><code>Pantalla
+   │  "el barbero tocó Completar"
+   ▼
+ViewModel
+   │
+   ▼
+CompleteCutUseCase ──────────────▶ PromoEngine
+   │   (coordina la acción)          (solo calcula: "¿cómo se cobra?")
+   ▼
+CompletedCutRepository
+   │
+   ▼
+DataSource ──▶ Firestore</code></pre>
+<p>El motor <strong>no está en la cadena de datos</strong>: está a un lado. El caso de uso lo consulta, como quien consulta una calculadora, y sigue con su trabajo.</p>
+
+<h2>3. Cómo se verá en el Paso 4</h2>
+<p>Es un borrador, para que veas la relación. El código real se escribe en el Paso 4, con las pruebas primero.</p>
+<pre><code>class CompleteCutUseCase(
+    private val repository: CompletedCutRepository,
+    private val engine: PromoEngine,
+) {
+    suspend operator fun invoke(appointmentId: String, clientId: String): AppResult&lt;CutCharge&gt; {
+        // 1. Busca los datos          (repositorio → Firestore; puede fallar o tardar)
+        // 2. Pregunta la regla         engine.nextCutCharge(promo, completedCuts)
+        // 3. Guarda                    CompletedCut(id = appointmentId, charge = ...)
+        // 4. Devuelve el cobro         (sirve para el aviso "corte gratis") o el error
+    }
+}</code></pre>
+<p>Fíjate en que el caso de uso <strong>recibe</strong> el motor; no lo reemplaza. La línea 2 es la única que toca reglas de negocio, y las delega.</p>
+
+<h2>4. Diferencias, una por una</h2>
+<table>
+  <tr><th></th><th><code>PromoEngine</code></th><th>Caso de uso (<code>...UseCase</code>)</th></tr>
+  <tr><td>Qué es</td><td>Reglas del negocio</td><td>Una acción de la app</td></tr>
+  <tr><td>¿Habla con los datos (repositorio)?</td><td>No</td><td>Sí</td></tr>
+  <tr><td>¿Es <code>suspend</code> (corrutinas)?</td><td>No: calcula al instante</td><td>Sí: espera a Firestore</td></tr>
+  <tr><td>¿Puede fallar?</td><td>No: siempre devuelve una respuesta</td><td>Sí: devuelve <code>AppResult</code> (sin red, no encontrado...)</td></tr>
+  <tr><td>¿Cuántos hay?</td><td>Uno, compartido</td><td>Uno por acción: completar, revertir, ver saldo...</td></tr>
+  <tr><td>¿Cómo se prueba?</td><td>Directo, sin MockK</td><td>Con MockK, simulando el repositorio</td></tr>
+  <tr><td>¿Qué prueban sus pruebas?</td><td>Las reglas: "el 11 es gratis"</td><td>La coordinación: "pide los datos, guarda una vez, maneja el error"</td></tr>
+</table>
+
+<h2>5. ¿Por qué no meter las reglas dentro del caso de uso?</h2>
+<h3>5.1 Las reglas quedan en un solo lugar</h3>
+<p>Varios casos de uso necesitan las mismas reglas:</p>
+<table>
+  <tr><th>Caso de uso (pasos futuros)</th><th>Le pregunta al motor</th></tr>
+  <tr><td><code>CompleteCutUseCase</code></td><td>"¿Cómo se cobra este corte?" (<code>nextCutCharge</code>)</td></tr>
+  <tr><td>El que muestra el saldo en la ficha del cliente</td><td>"¿Cómo va su promo?" (<code>status</code>)</td></tr>
+  <tr><td>El que pone el aviso "corte gratis" en la agenda</td><td>"¿El próximo es gratis?" (<code>nextCutCharge</code>)</td></tr>
+</table>
+<div class="box warn">Si cada caso de uso tuviera su propia copia de la regla "cada 10 pagados, el siguiente es gratis", el día que una cambie y otra no, la agenda diría "gratis" y la ficha diría "9 de 10". Con el motor, eso no puede pasar.</div>
+
+<h3>5.2 Las pruebas son más simples</h3>
+<p>Las 21 pruebas del motor no simulan nada: le pasan una lista y revisan la respuesta. Por eso corren en segundos. Las pruebas del caso de uso, en el Paso 4, no repiten esas reglas: solo comprueban que coordina bien.</p>
+
+<h3>5.3 Si cambia la fuente de datos, las reglas no se tocan</h3>
+<p>Cuando llegue Room (modo sin internet), cambia el repositorio. El motor no se entera, porque nunca supo de dónde venían los datos.</p>
+
+<h2>6. ¿Y cómo se llama esto en arquitectura?</h2>
+<p>A una clase como <code>PromoEngine</code> se le llama <strong>servicio de dominio</strong>: lógica de negocio pura que no pertenece a un solo modelo. Las reglas de la tiquetera usan <code>Promo</code>, <code>CompletedCut</code> y <code>PromoStatus</code> a la vez, así que no caben dentro de ninguno de ellos.</p>
+<ul>
+  <li>Se llama <code>Engine</code> (motor) porque calcula.</li>
+  <li>No termina en <code>UseCase</code> porque no es una acción de la app. Así se cumple tu convención: si termina en <code>UseCase</code>, es una acción; si no, es un modelo o una regla.</li>
+</ul>
+
+<h2>7. Cómo reconocerlos tú mismo</h2>
+<div class="box ok">
+<p>Hazte estas preguntas sobre una clase del paquete <code>domain</code>:</p>
+<ol>
+  <li><strong>¿Necesita un repositorio?</strong> Sí → caso de uso. No → regla o modelo.</li>
+  <li><strong>¿Tiene que esperar algo (<code>suspend</code>)?</strong> Sí → caso de uso.</li>
+  <li><strong>¿Puede fallar por algo de afuera (red, datos que no existen)?</strong> Sí → caso de uso, y devuelve <code>AppResult</code>.</li>
+  <li><strong>¿Responde siempre igual con los mismos datos?</strong> Sí → es una regla, como <code>PromoEngine</code>.</li>
+</ol>
+</div>
+
+<h2>8. Ejercicio</h2>
+<p>Piensa en <code>RevertCutUseCase</code> (Paso 4): borra el corte completado. ¿Necesita a <code>PromoEngine</code>? Pista: ¿tiene que calcular algo para borrar, o solo para mostrar el saldo después?</p>
+<p class="sub">Respuesta: no lo necesita para borrar. El saldo se recalcula solo la próxima vez que alguien lo pida, porque nunca se guarda: siempre sale del motor y de la lista de cortes.</p>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 3: motor de promos — qué hicimos y por qué</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318} .ok{border-left:4px solid #0E7A4E}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+</style>
+</head>
+<body>
+<h1>Paso 3: motor de promos</h1>
+<p class="sub">Rama <code>feature/promo-engine</code> · módulo <code>:feature:promos</code>, paquete <code>domain</code> · Kotlin puro, hecho con TDD</p>
+
+<h2>1. Qué hace</h2>
+<p>El <code>PromoEngine</code> es el "cerebro" de las promociones. No guarda nada ni habla con internet: recibe <strong>la promo del cliente</strong> y <strong>su historial de cortes completados</strong>, y responde dos preguntas:</p>
+<table>
+  <tr><th>Pregunta</th><th>Función</th><th>Ejemplo de respuesta</th></tr>
+  <tr><td>¿Cómo va su promo?</td><td><code>status(promo, completedCuts)</code></td><td>"Tiquetera: 4 de 10" o "Paquete: le quedan 7"</td></tr>
+  <tr><td>¿Cómo se cobra su próximo corte?</td><td><code>nextCutCharge(promo, completedCuts)</code></td><td><code>PAID</code>, <code>FREE_BY_PUNCH_CARD</code> o <code>FROM_PACKAGE</code></td></tr>
+</table>
+<p>La segunda respuesta es la que alimentará el aviso <strong>"Corte gratis por tiquetera"</strong> en la agenda (Paso 11). Las reglas salen de la tabla que aprobaste: <code>docs/comportamientos-promos.md</code>.</p>
+
+<h2>2. Los modelos</h2>
+
+<h3>2.1 <code>Promo</code>: la única promo del cliente</h3>
+<pre><code>sealed interface Promo {
+    data class PunchCard(val cutsForFreeCut: Int) : Promo {        // tiquetera
+        init { require(cutsForFreeCut &gt; 0) { "..." } }
+    }
+    data class PrepaidPackage(val includedCuts: Int) : Promo {     // paquete
+        init { require(includedCuts &gt; 0) { "..." } }
+    }
+}</code></pre>
+<p>En el código se llaman en inglés (<em>punch card</em> es tiquetera, <em>prepaid package</em> es paquete prepago), porque el código va en inglés. El <code>init { require(...) }</code> es una <strong>defensa</strong>: no se puede crear una tiquetera de 0 cortes ni un paquete vacío. Si alguien lo intenta, falla al instante con un mensaje claro, en vez de producir saldos absurdos después.</p>
+<p>El precio del paquete no está aquí a propósito: el motor no lo necesita para contar cortes. Llega con la venta, en el Paso 13.</p>
+
+<h3>2.2 <code>CutCharge</code> y <code>CompletedCut</code>: el historial</h3>
+<pre><code>enum class CutCharge { PAID, FREE_BY_PUNCH_CARD, FROM_PACKAGE }
+
+data class CompletedCut(val id: String, val charge: CutCharge)</code></pre>
+<p>El historial del cliente es una lista de <code>CompletedCut</code> (corte completado). Cada uno dice qué corte fue (<code>id</code>, en el Paso 4 será el id fijo del turno) y <em>cómo se cobró</em> (<code>charge</code>): pagado, gratis por tiquetera o descontado del paquete.</p>
+<p>No lo confundas con <code>CompleteCutUseCase</code> (completar corte), el <strong>caso de uso</strong> del Paso 4: la acción que crea un <code>CompletedCut</code>. Uno es el dato; el otro, la acción. Por eso todo caso de uso termina en <code>UseCase</code> (convención que pediste). Antes se llamaba <code>LedgerEntry</code> ("asiento del libro mayor", término de contabilidad); lo cambiamos por un nombre que se entienda solo.</p>
+<div class="box ok">
+<p><strong>Qué es revertir (lo decidiste tú):</strong> el barbero tocó "Completar" por error, por ejemplo con el cliente todavía en la silla. Revertir <strong>borra ese corte completado</strong> y <strong>devuelve el turno a "programado"</strong>, las dos cosas juntas. Cuando termine de verdad, lo completa otra vez.</p>
+<p>Primero lo diseñamos guardando un registro extra "este no cuenta" (<code>CutReverted</code>), para tener rastro de los errores. Lo quitamos: con un solo barbero el rastro aporta poco, y borrar deja el modelo y el motor más simples. Además, al borrarse el cobro, el id del turno queda libre para completarlo de nuevo sin trucos.</p>
+</div>
+
+<h3>2.3 <code>PromoStatus</code>: la respuesta</h3>
+<pre><code>sealed interface PromoStatus {
+    data object NoPromo : PromoStatus
+    data class PunchCard(val paidCuts: Int, val cutsForFreeCut: Int, val hasFreeCutAvailable: Boolean) : PromoStatus
+    data class PrepaidPackage(val remainingCuts: Int, val includedCuts: Int) : PromoStatus
+}</code></pre>
+<p>Es lo que la pantalla mostrará. <code>PunchCard(paidCuts = 4, cutsForFreeCut = 10, ...)</code> se lee "4 de 10".</p>
+
+<h2>3. La decisión de diseño más importante</h2>
+<div class="box warn">
+<p><strong>Cada corte guarda cómo se cobró, en el momento en que se completa.</strong> El motor no lo recalcula después.</p>
+</div>
+<p>¿Por qué? Imagina que el motor recalculara todo desde cero, decidiendo qué corte fue gratis:</p>
+<pre><code>Cortes:  1 2 3 4 5 6 7 8 9 10 | 11 (gratis, el barbero no cobró)
+Luego se revierte el corte 3 (fue un error).
+
+Si se recalculara: quedan 10 cortes "pagados" (1,2,4,...,10, 11)
+→ el corte 11 pasaría a contar como PAGADO
+→ el motor diría "tiene un gratis pendiente" ❌  ¡y le daríamos otro gratis!</code></pre>
+<p>Con el cobro guardado, el corte 11 sigue siendo <code>FREE_BY_PUNCH_CARD</code> para siempre. Revertir el 3 no cambia lo que ya pasó. Hay una prueba exacta para esto: <em>"given an old paid cut reverted after a free cut ... then should keep the free cut as already used"</em>.</p>
+
+<h2>4. Cómo calcula, paso a paso</h2>
+
+<p>Como lo revertido ya no está en la lista, el motor no tiene que filtrar nada: cuenta lo que recibe.</p>
+
+<h3>4.1 Tiquetera: cuenta los pagados desde el último gratis</h3>
+<pre><code>private fun paidCutsSinceLastFreeCut(cuts: List&lt;CompletedCut&gt;): Int {
+    var paidCuts = 0
+    for (cut in cuts) {
+        when (cut.charge) {
+            CutCharge.PAID -&gt; paidCuts++                 // suma 1
+            CutCharge.FREE_BY_PUNCH_CARD -&gt; paidCuts = 0 // el gratis reinicia (T3) y no suma (T5)
+            CutCharge.FROM_PACKAGE -&gt; Unit               // no aplica a la tiquetera
+        }
+    }
+    return paidCuts
+}</code></pre>
+<p>Seguimiento con una tiquetera de 10:</p>
+<table>
+  <tr><th>Cortes</th><th>Contador</th></tr>
+  <tr><td>10 cortes pagados</td><td>1, 2, ..., 10 → <strong>gratis disponible</strong></td></tr>
+  <tr><td>corte gratis</td><td>vuelve a <strong>0</strong></td></tr>
+  <tr><td>1 corte pagado</td><td>1 ("1 de 10")</td></tr>
+</table>
+
+<h3>4.2 Paquete: incluidos menos usados</h3>
+<pre><code>val usedCuts = completedCuts.count { it.charge == CutCharge.FROM_PACKAGE }
+remainingCuts = (promo.includedCuts - usedCuts).coerceAtLeast(0)</code></pre>
+<p><code>coerceAtLeast(0)</code> significa "nunca menos de 0". Con las reglas normales no debería pasar, pero si los datos llegan desordenados (por ejemplo, dos sincronizaciones sin conexión), el barbero nunca verá "le quedan -1".</p>
+
+<h3>4.3 El próximo corte</h3>
+<pre><code>fun nextCutCharge(promo: Promo?, completedCuts: List&lt;CompletedCut&gt;): CutCharge =
+    when (val status = status(promo, completedCuts)) {
+        PromoStatus.NoPromo -&gt; CutCharge.PAID
+        is PromoStatus.PunchCard -&gt; if (status.hasFreeCutAvailable) CutCharge.FREE_BY_PUNCH_CARD else CutCharge.PAID
+        is PromoStatus.PrepaidPackage -&gt; if (status.remainingCuts &gt; 0) CutCharge.FROM_PACKAGE else CutCharge.PAID
+    }</code></pre>
+<p>Reutiliza <code>status</code> para no repetir reglas: una sola fuente de verdad. Como <code>PromoStatus</code> es sellado, el <code>when</code> obliga a cubrir los tres casos.</p>
+
+<h2>5. Las pruebas, una por regla</h2>
+<table>
+  <tr><th>Regla</th><th>Prueba</th></tr>
+  <tr><td>T1</td><td><code>given a punch card with 4 paid cuts when checking the status then should show 4 of 10 without a free cut</code><br><code>given a punch card with 9 paid cuts when checking the next cut then should be paid</code></td></tr>
+  <tr><td>T2</td><td><code>given a punch card with 10 paid cuts when checking the next cut then should be free</code></td></tr>
+  <tr><td>T3 y T5</td><td><code>given a used free cut when checking the status then should restart the count at 0</code><br><code>given a used free cut followed by one paid cut ... then should count only that paid cut</code></td></tr>
+  <tr><td>T4</td><td><code>given a pending free cut when more cuts are checked later then should still be free because it never expires</code></td></tr>
+  <tr><td>P1, P2, P3</td><td>Paquete recién vendido (10), con 3 usados (7), con saldo (del paquete), agotado (pagado), agotado con cortes extra (0), y nunca negativo</td></tr>
+  <tr><td>R1, R2, R3</td><td>Quitar un pagado deja todo como antes; quitar uno del paquete lo devuelve; quitar el gratis lo vuelve a dar; quitar un pagado viejo tras un gratis no regala otro</td></tr>
+  <tr><td>G1</td><td>Cliente sin promo: próximo corte pagado y estado <code>NoPromo</code></td></tr>
+  <tr><td>Defensas</td><td>Tiquetera de 0 cortes y paquete de 0 cortes son rechazados</td></tr>
+</table>
+<p>21 pruebas en total, en tres archivos: <code>PromoEnginePunchCardTest</code>, <code>PromoEnginePackageTest</code> y <code>PromoEngineReversalTest</code>.</p>
+
+<h2>6. Algo nuevo: probar las pruebas (mutaciones)</h2>
+<p>Que las pruebas estén en verde no garantiza que protejan algo. Para comprobarlo, rompí a propósito tres reglas del motor, una a la vez, y miré si alguna prueba fallaba:</p>
+<table>
+  <tr><th>Mutación (cambio a propósito)</th><th>Pruebas que fallaron</th></tr>
+  <tr><td>El gratis no reinicia el contador</td><td>4 ✅</td></tr>
+  <tr><td>Los reversos se ignoran</td><td>5 ✅ (ya no aplica: ese código se quitó al decidir que revertir borra el corte)</td></tr>
+  <tr><td>El paquete puede quedar negativo</td><td><strong>0 ❌</strong> → faltaba una prueba</td></tr>
+</table>
+<div class="box ok">La tercera reveló una línea sin proteger (<code>coerceAtLeast(0)</code>). Agregamos la prueba <em>"given more package cuts recorded than included ... then should never show negative cuts left"</em>, repetimos la mutación y ahora fallan 2 pruebas. Después de cada mutación el archivo se restauró idéntico.</div>
+<p>Esta técnica se llama <strong>pruebas de mutación</strong>. Aquí la hicimos a mano en las reglas más delicadas.</p>
+
+<h2>7. Dónde vive y quién lo usará</h2>
+<ul>
+  <li>Vive en <code>:feature:promos</code>, paquete <code>domain</code>: Kotlin puro, sin Android ni Firebase. Sus pruebas corren en la JVM, en segundos.</li>
+  <li>La agenda y la ficha del cliente lo necesitarán, pero <strong>no lo importarán directamente</strong> (los módulos no se ven entre sí). Lo usarán a través de casos de uso con su contrato en <code>:core</code>, como se decidió en la revisión de ingeniería (Paso 4 en adelante).</li>
+</ul>
+
+<h2>8. Qué no hicimos, a propósito</h2>
+<ul>
+  <li><strong>Guardar y borrar cortes:</strong> el motor solo calcula. El repositorio, <code>CompleteCutUseCase</code> y <code>RevertCutUseCase</code> (que borra el cobro) llegan en el Paso 4; devolver el turno a "programado" se conecta cuando exista la agenda (Paso 11).</li>
+  <li><strong>Hilt:</strong> el motor no tiene dependencias; se conecta cuando un caso de uso lo use.</li>
+  <li><strong>Cambiar de tiquetera a paquete:</strong> quedó anotado para el Paso 13 en <code>docs/comportamientos-promos.md</code>.</li>
+</ul>
+
+<h2>9. Cómo probarlo tú</h2>
+<pre><code>./gradlew :feature:promos:testDebugUnitTest</code></pre>
+<p>Ejercicio: en <code>PromoEngine.kt</code>, cambia <code>CutCharge.FREE_BY_PUNCH_CARD -&gt; paidCuts = 0</code> por <code>CutCharge.FREE_BY_PUNCH_CARD -&gt; Unit</code> y corre las pruebas. Mira cuáles fallan y lee sus nombres: te dicen qué regla del negocio rompiste. Luego deshaz el cambio.</p>
+</body>
+</html>
