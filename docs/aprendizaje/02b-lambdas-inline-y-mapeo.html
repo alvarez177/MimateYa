@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aparte: lambdas, inline y el mapeo de errores, explicados despacio</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.65;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:42px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:26px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318} .ok{border-left:4px solid #0E7A4E}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top} th{background:#EEF0F3}
+  .sub{color:#4A5260} .c{color:#8FA9FF}
+  details{background:#fff;border:1px solid #E3E5E8;border-radius:10px;padding:8px 14px;margin:10px 0} summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Lambdas, <code>inline</code> y el mapeo de errores</h1>
+<p class="sub">Documento aparte del Paso 2. Resuelve tres dudas: qué es <code>transform()</code> en <code>resolve</code>, por qué <code>DefaultErrorMapper</code> mapea solo dos casos, y cómo leer <code>appResultOf</code>. Si algo sigue confuso, dime cuál y lo amplío.</p>
+
+<h2>Parte 1. Qué es <code>transform</code>: una función que se pasa como valor</h2>
+
+<h3>1.1 Una función también es un valor</h3>
+<p>En Kotlin puedes guardar una función en una variable o pasarla a otra función, igual que un número o un texto:</p>
+<pre><code>val doblar: (Int) -&gt; Int = { numero -&gt; numero * 2 }
+
+doblar(5)   // 10</code></pre>
+<p>El tipo <code>(Int) -&gt; Int</code> se lee: <strong>"una función que recibe un Int y devuelve un Int"</strong>. Lo que está entre llaves <code>{ numero -&gt; numero * 2 }</code> se llama <strong>lambda</strong>: una función sin nombre, escrita en el momento.</p>
+
+<h3>1.2 Ya la conoces: <code>map</code> de las listas</h3>
+<pre><code>val precios = listOf(100, 200, 300)
+val conIva  = precios.map { it * 2 }     // [200, 400, 600]</code></pre>
+<p>Aquí <code>{ it * 2 }</code> es la lambda. <code>map</code> la ejecuta <strong>una vez por cada elemento</strong>. Dentro de una lambda con un solo parámetro, Kotlin permite llamarlo <code>it</code> en vez de escribir <code>numero -&gt;</code>.</p>
+
+<h3>1.3 Ahora, <code>resolve</code> de <code>AppResult</code></h3>
+<pre><code>inline fun &lt;T, R&gt; AppResult&lt;T&gt;.resolve(transform: (T) -&gt; R): AppResult&lt;R&gt; = when (this) {
+    is AppResult.Success -&gt; AppResult.Success(transform(value))
+    is AppResult.Failure -&gt; this
+}</code></pre>
+<div class="box tip">Funciona como el <code>map</code> de las listas, pero se llama <code>resolve</code> a propósito: así no se confunde con el <code>map</code> de listas y de <code>Flow</code>, que aparecen en el mismo código.</div>
+<p>Léelo por partes:</p>
+<table>
+  <tr><th>Pieza</th><th>Significa</th></tr>
+  <tr><td><code>&lt;T, R&gt;</code></td><td>Dos "tipos comodín". <code>T</code> es el tipo del valor que hay <em>dentro</em> del resultado (por ejemplo <code>Int</code>), <code>R</code> es el tipo al que vas a convertirlo (por ejemplo <code>String</code>). Se llaman <strong>genéricos</strong>: la misma función sirve para cualquier tipo.</td></tr>
+  <tr><td><code>AppResult&lt;T&gt;.resolve</code></td><td>Una <strong>función de extensión</strong>: agrega <code>resolve</code> a <code>AppResult</code> sin tocar su código. Por eso la llamas con punto: <code>resultado.resolve { ... }</code>. Dentro, <code>this</code> es ese <code>resultado</code>.</td></tr>
+  <tr><td><code>transform: (T) -&gt; R</code></td><td><strong>La lambda que tú le pasas.</strong> "Una función que recibe el valor (<code>T</code>) y devuelve otro (<code>R</code>)". <code>transform</code> es solo el nombre del parámetro, como lo sería <code>nombre</code> o <code>edad</code>.</td></tr>
+  <tr><td><code>transform(value)</code></td><td>Aquí se <strong>ejecuta</strong> esa función, dándole el valor guardado.</td></tr>
+  <tr><td><code>when (this) { ... }</code></td><td>Mira si el resultado es éxito o fallo. Como <code>AppResult</code> es sellado, el compilador exige cubrir los dos.</td></tr>
+  <tr><td><code>is AppResult.Failure -&gt; this</code></td><td>Si fue un fallo, <strong>no hace nada</strong>: devuelve el mismo fallo, sin ejecutar <code>transform</code>.</td></tr>
+</table>
+
+<h3>1.4 Seguimiento con valores reales</h3>
+<pre><code>val resultado: AppResult&lt;Int&gt; = AppResult.Success(2)
+val texto = resultado.resolve { "Cortes: $it" }</code></pre>
+<ol>
+  <li><code>resultado</code> es <code>Success(2)</code>, así que <code>when</code> toma la primera rama.</li>
+  <li><code>value</code> vale <code>2</code>.</li>
+  <li>Se ejecuta tu lambda con <code>it = 2</code> y devuelve <code>"Cortes: 2"</code>.</li>
+  <li>El resultado es <code>Success("Cortes: 2")</code>. El tipo pasó de <code>AppResult&lt;Int&gt;</code> a <code>AppResult&lt;String&gt;</code>: eso es <code>T</code> convertido en <code>R</code>.</li>
+</ol>
+<p>Y con un fallo:</p>
+<pre><code>val fallo: AppResult&lt;Int&gt; = AppResult.Failure(AppError.Network)
+val texto = fallo.resolve { "Cortes: $it" }
+// texto es el mismo Failure(Network). Tu lambda NUNCA se ejecutó.</code></pre>
+<div class="box tip"><strong>Para qué sirve:</strong> encadenar pasos sin preguntar "¿falló?" cada vez. Cada <code>resolve</code> solo actúa si todo lo anterior salió bien, y si algo falló, el error viaja intacto hasta el final.</div>
+
+<h3>1.5 Un detalle: <code>AppResult&lt;out T&gt;</code></h3>
+<p>En la definición dice <code>sealed interface AppResult&lt;out T&gt;</code>. El <code>out</code> significa "T solo sale, nunca entra". Gracias a eso, <code>Failure</code> puede ser <code>AppResult&lt;Nothing&gt;</code> (un fallo no guarda ningún valor) y aun así encajar en <code>AppResult&lt;Int&gt;</code>, <code>AppResult&lt;String&gt;</code>, etc. Por eso <code>is Failure -&gt; this</code> compila sin crear un objeto nuevo.</p>
+
+<h2>Parte 2. Qué hace <code>inline</code></h2>
+
+<h3>2.1 Sin <code>inline</code></h3>
+<p>Cuando pasas una lambda a una función normal, Kotlin crea en memoria <strong>un objeto</strong> que representa esa lambda y lo entrega. Es un pequeño costo cada vez que la función se llama.</p>
+
+<h3>2.2 Con <code>inline</code></h3>
+<p><code>inline</code> le dice al compilador: <strong>"no llames a esta función; copia su cuerpo directamente donde se usa"</strong>. Tú escribes:</p>
+<pre><code>val texto = resultado.resolve { "Cortes: $it" }</code></pre>
+<p>y el compilador lo convierte, <em>en el código final</em>, en algo equivalente a:</p>
+<pre><code>val texto = when (resultado) {
+    is AppResult.Success -&gt; AppResult.Success("Cortes: ${resultado.value}")
+    is AppResult.Failure -&gt; resultado
+}</code></pre>
+<p>La lambda desaparece: su contenido queda pegado en medio. No hay objeto ni llamada extra. Tú sigues escribiendo y leyendo la versión corta.</p>
+
+<h3>2.3 Entonces, ¿por qué lo usamos aquí?</h3>
+<p>Seamos honestos: en <code>resolve</code> el ahorro de memoria es pequeño. Las razones reales son otras:</p>
+<table>
+  <tr><th>Razón</th><th>Explicación</th></tr>
+  <tr><td><strong>Se pueden llamar funciones <code>suspend</code> dentro de la lambda</strong></td><td>Con corrutinas esto importa mucho. Como el cuerpo se copia en tu función, una lambda <code>inline</code> puede llamar a Firestore o a cualquier función <code>suspend</code> si la función que la rodea también lo es. Sin <code>inline</code>, la lambda sería otra función y no podría.</td></tr>
+  <tr><td><strong>Se puede usar <code>return</code> dentro</strong></td><td>En una lambda inline, un <code>return</code> sale de <em>tu</em> función, no solo de la lambda. Mira el ejemplo abajo.</td></tr>
+  <tr><td><strong>Es lo habitual</strong></td><td><code>map</code>, <code>filter</code>, <code>let</code>, <code>forEach</code> de la librería estándar son <code>inline</code> por estas mismas razones.</td></tr>
+</table>
+
+<h3>2.4 Ejemplo del <code>return</code></h3>
+<pre><code>fun buscarDos(numeros: List&lt;Int&gt;): String {
+    numeros.forEach {                 // forEach es inline
+        if (it == 2) return "lo encontré"   // sale de buscarDos, no solo de la lambda
+    }
+    return "no estaba"
+}
+
+buscarDos(listOf(1, 2, 3))   // "lo encontré"</code></pre>
+<p>Si <code>forEach</code> no fuera <code>inline</code>, ese <code>return</code> no compilaría.</p>
+
+<div class="box warn"><strong>Cuándo NO usarlo:</strong> no se pone <code>inline</code> a todo. En funciones grandes copiaría mucho código en cada sitio y haría la app más pesada. Se usa en funciones <em>pequeñas que reciben lambdas</em>, justo como estas.</div>
+
+<h2>Parte 3. <code>appResultOf</code>, línea por línea</h2>
+<pre><code>inline fun &lt;T&gt; appResultOf(mapper: ErrorMapper, block: () -&gt; T): AppResult&lt;T&gt; =
+    try {
+        AppResult.Success(block())
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (throwable: Throwable) {
+        AppResult.Failure(mapper.map(throwable))
+    }</code></pre>
+<table>
+  <tr><th>Línea</th><th>Qué pasa</th></tr>
+  <tr><td><code>mapper: ErrorMapper</code></td><td>Quien sabe convertir una excepción en un <code>AppError</code>.</td></tr>
+  <tr><td><code>block: () -&gt; T</code></td><td>Una lambda <strong>sin parámetros</strong> que devuelve algo de tipo <code>T</code>. Es "el trabajo que puede fallar": tú lo escribes.</td></tr>
+  <tr><td><code>try { AppResult.Success(block()) }</code></td><td>Ejecuta tu trabajo. Si termina sin problema, guarda el valor en un <code>Success</code>.</td></tr>
+  <tr><td><code>catch (cancellation: CancellationException) { throw cancellation }</code></td><td>Si el trabajo se canceló, <strong>lo vuelve a lanzar</strong>. No es un error: es el sistema diciendo "ya no hace falta, para". Atraparlo rompería la cancelación.</td></tr>
+  <tr><td><code>catch (throwable: Throwable)</code></td><td>Cualquier otra cosa que haya salido mal se convierte en <code>Failure(mapper.map(throwable))</code>.</td></tr>
+</table>
+<div class="box tip"><strong>El orden de los <code>catch</code> importa.</strong> Kotlin revisa de arriba abajo y usa el primero que encaja. <code>CancellationException</code> va <em>antes</em> que <code>Throwable</code>; si fuera al revés, <code>Throwable</code> (que lo abarca todo) la atraparía primero.</div>
+
+<h3>Cómo se usa</h3>
+<pre><code>// El bloque entre llaves es "block"
+val resultado: AppResult&lt;Client&gt; = appResultOf(errorMapper) {
+    dataSource.findClient(phone)     // si lanza una excepción, termina como Failure
+}
+
+// Se encadena con resolve para transformar el valor sin preguntar si falló:
+val nombre: AppResult&lt;String&gt; = resultado.resolve { client -&gt; client.name }
+
+// Y para actuar según el resultado se usa un when:
+when (nombre) {
+    is AppResult.Success -&gt; println("Hola ${nombre.value}")
+    is AppResult.Failure -&gt; println("Error: ${nombre.error}")
+}</code></pre>
+<p>Como <code>appResultOf</code> es <code>inline</code>, <code>dataSource.findClient(phone)</code> puede ser una función <code>suspend</code> cuando se llama desde otra función <code>suspend</code>. Esa es la razón principal por la que lo hicimos así.</p>
+
+<h2>Parte 4. ¿Por qué <code>DefaultErrorMapper</code> solo mapea una regla?</h2>
+<pre><code>override fun map(throwable: Throwable): AppError = when (throwable) {
+    is IOException -&gt; AppError.Network
+    else -&gt; AppError.Unknown(throwable)
+}</code></pre>
+<p>Parece que cubre pocas excepciones, pero hay una trampa a favor: <strong><code>IOException</code> es una "familia"</strong>. <code>is IOException</code> acepta la clase y todas sus hijas:</p>
+<pre><code>Throwable
+ └─ Exception
+     └─ IOException                      ← aquí atrapamos
+         ├─ SocketTimeoutException       (se agotó el tiempo)
+         ├─ UnknownHostException         (no encontró el servidor / sin internet)
+         ├─ ConnectException             (no pudo conectarse)
+         ├─ SSLException                 (problema de conexión segura)
+         └─ ... y muchas más</code></pre>
+<p>Una sola línea cubre todos los problemas de red. Por eso las tres pruebas de red (<code>IOException</code>, <code>SocketTimeoutException</code>, <code>UnknownHostException</code>) pasan con la misma regla.</p>
+
+<h3>¿Y el <code>else</code>?</h3>
+<p><code>else -&gt; AppError.Unknown(throwable)</code> es la red de seguridad. Cualquier excepción que no reconozcamos <strong>no se esconde ni se pierde</strong>: queda como <code>Unknown</code> con la causa guardada. La app no se cierra, al barbero le sale "Algo salió mal" y nosotros tenemos la excepción original para investigar.</p>
+
+<h3>¿Por qué no mapear más cosas ya?</h3>
+<p>Regla de este diseño: <strong>solo se mapea lo que sabemos explicarle al usuario</strong>. Mapear por adivinar produce mensajes equivocados. Y los demás <code>AppError</code> no salen de este mapeador a propósito:</p>
+<table>
+  <tr><th>Error</th><th>Quién lo produce</th><th>Cuándo se agrega</th></tr>
+  <tr><td><code>Network</code></td><td><code>DefaultErrorMapper</code> (familia <code>IOException</code>)</td><td>Ya está</td></tr>
+  <tr><td><code>Unknown</code></td><td><code>DefaultErrorMapper</code> (todo lo demás)</td><td>Ya está</td></tr>
+  <tr><td><code>InvalidCredentials</code></td><td>Mapeador de Firebase (<code>FirebaseAuthInvalidCredentialsException</code>)</td><td>Paso 6</td></tr>
+  <tr><td><code>NotFound</code>, <code>Conflict</code></td><td>Mapeador de Firebase (según el código del error de Firestore) o la lógica de negocio</td><td>Paso 6 y siguientes</td></tr>
+  <tr><td><code>Validation(campo)</code></td><td>La lógica de negocio, que revisa los datos <em>antes</em> de llamar a la red (por ejemplo, correo sin arroba)</td><td>Paso 7 en adelante</td></tr>
+</table>
+<div class="box ok">Así el mapeador crece <strong>con evidencia</strong>: cuando veamos qué excepciones lanza Firebase de verdad, se agregan sus reglas, con su prueba primero. Es el mismo TDD del resto del proyecto.</div>
+<p>Una nota sobre el <code>when</code>: se evalúa de arriba abajo y gana la primera rama que encaja. Cuando agreguemos reglas, las más específicas van primero (una subclase antes que su familia).</p>
+
+<h2>Para practicar (con respuesta oculta)</h2>
+<details><summary>1. ¿Qué devuelve esto?  <code>AppResult.Success(3).resolve { it + 1 }</code></summary>
+<p><code>Success(4)</code>. La lambda recibe <code>3</code> y devuelve <code>4</code>.</p></details>
+<details><summary>2. ¿Y esto?  <code>AppResult.Failure(AppError.NotFound).resolve { it + 1 }</code></summary>
+<p><code>Failure(NotFound)</code>, el mismo fallo. La lambda no se ejecuta.</p></details>
+<details><summary>3. ¿Qué <code>AppError</code> sale de <code>DefaultErrorMapper().map(IllegalArgumentException("x"))</code>?</summary>
+<p><code>Unknown(cause = IllegalArgumentException("x"))</code>. No es de la familia <code>IOException</code>, así que cae en el <code>else</code> y conserva la causa.</p></details>
+<details><summary>4. ¿Qué pasa si <code>block</code> lanza <code>CancellationException</code> dentro de <code>appResultOf</code>?</summary>
+<p>Se vuelve a lanzar tal cual. <code>appResultOf</code> no devuelve nada y el <code>ErrorMapper</code> no se llama.</p></details>
+<details><summary>5. Si quitaras la palabra <code>inline</code> de <code>appResultOf</code>, ¿qué dejaría de poder hacerse?</summary>
+<p>Llamar a una función <code>suspend</code> dentro del bloque sin que <code>appResultOf</code> misma fuera <code>suspend</code>, y usar <code>return</code> dentro del bloque para salir de la función que la rodea.</p></details>
+
+<h2>Para ver todo esto funcionar</h2>
+<p>En el archivo <code>core/src/test/.../AppResultTest.kt</code> están las pruebas de <code>resolve</code>; en <code>AppResultOfTest.kt</code>, las de <code>appResultOf</code>. Léelas en este orden: son ejemplos mínimos, con nombres que dicen lo que protegen. Si quieres, en el próximo paso te armo otro documento de este estilo sobre corrutinas, <code>suspend</code> y <code>Flow</code>.</p>
+</body>
+</html>
