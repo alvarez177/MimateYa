@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Design system sample screen (temporary, until the real screens arrive) -->
+    <string name="showcase_title">Sistema de diseño</string>
+    <string name="showcase_subtitle">Empieza a dejar la libreta</string>
+    <string name="showcase_section_text">Textos</string>
+    <string name="showcase_section_colors">Colores</string>
+    <string name="showcase_section_components">Componentes</string>
+    <string name="showcase_screen_title">Nuevo turno</string>
+    <string name="showcase_body">Carlos Pérez · Corte · tiquetera 9/10</string>
+    <string name="showcase_detail">10 cortes por $150.000</string>
+    <string name="showcase_link">Revertir</string>
+    <string name="showcase_primary_button">Crear cuenta</string>
+    <string name="showcase_secondary_button">Iniciar sesión</string>
+    <string name="showcase_free_tag">Gratis pendiente</string>
+    <string name="showcase_hero_caption">10:30 · Carlos Pérez</string>
+    <string name="showcase_hero_title">Corte gratis</string>
+</resources>

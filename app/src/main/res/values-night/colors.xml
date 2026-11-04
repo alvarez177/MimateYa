@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark paper token, so dark mode does not flash white on start. -->
+    <color name="window_background">#FF0F1318</color>
+</resources>
