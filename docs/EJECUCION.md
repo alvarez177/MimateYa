@@ -14,7 +14,7 @@ Este archivo es la **fuente de verdad del avance**. Si la sesión se cierra o se
 - Al terminar cada paso se genera `docs/aprendizaje/NN-<paso>.html` explicando el código en español.
 - Plan aprobado: `/Users/sebastianalvarez/.claude/plans/typed-munching-peach.md` (copia de las reglas y del detalle del paso 1).
 
-**Paso en curso:** ninguno (Paso 3 a la espera de integrar; siguiente: Paso 4 `feature/promo-use-cases`)
+**Paso en curso:** ninguno (Paso 4 a la espera de integrar; siguiente: Paso 5 `feature/design-system`)
 
 ## Pasos
 
@@ -22,8 +22,8 @@ Este archivo es la **fuente de verdad del avance**. Si la sesión se cierra o se
 |---|------|----------|------------|--------|
 | 1 | `feature/project-setup` | Gradle modular (`:app`, `:core`, `:feature:agenda`, `:feature:clients`, `:feature:promos`), Hilt, MockK, versiones al día, ambientes dev/QA/prod con icono y nombre propios; la app compila y abre | — | terminado (integrado en `develop`, PR #1) |
 | 2 | `feature/core-errors` | `AppError`, `AppResult` con `resolve`, `ErrorMapper`, `appResultOf`, `ErrorMessageMapper` en español, con pruebas primero | 1 | terminado (integrado en `develop`, PR #2) |
-| 3 | `feature/promo-engine` | Tabla de comportamientos, modelos de dominio y `PromoEngine` en Kotlin puro (tests primero) | 2 | terminado (PR hacia `develop`, a la espera de integrar) |
-| 4 | `feature/promo-use-cases` | `CompletedCutRepository`, `CompleteCutUseCase` (id fijo, idempotente), `RevertCutUseCase` (borra el corte completado) como funciones `suspend`; añade `kotlinx-coroutines` y `kotlinx-coroutines-test` (`runTest`) y los despachadores inyectables; tests con MockK primero | 3 | sin empezar |
+| 3 | `feature/promo-engine` | Tabla de comportamientos, modelos de dominio y `PromoEngine` en Kotlin puro (tests primero) | 2 | terminado (integrado en `develop`, PR #3) |
+| 4 | `feature/promo-use-cases` | `CompletedCutRepository`, `CompleteCutUseCase` (id fijo, idempotente), `RevertCutUseCase` (borra el corte completado) como funciones `suspend`; añade `kotlinx-coroutines` y `kotlinx-coroutines-test` (`runTest`) y los despachadores inyectables; tests con MockK primero | 3 | terminado (PR hacia `develop`, a la espera de integrar) |
 | 5 | `feature/design-system` | Tema claro y oscuro, tokens aprobados, fuentes locales en `res/font` | 1 | sin empezar |
 | 6 | `feature/firebase-setup` | Tres ambientes (dev, QA, prod) con flavors, Firestore y Auth, `DataSource` propio con `suspend`/`Flow` (añade `kotlinx-coroutines-play-services` y `callbackFlow`) y mapeo de excepciones | 2 | sin empezar |
 | 6b | `feature/app-distribution` | Firebase App Distribution: subir las variantes dev, QA y prod desde Gradle y descargarlas desde la app Firebase App Tester; grupo de testers por ambiente. También crea la llave de firma (keystore) de prod, fuera del repo y con copia de seguridad tuya, y configura la firma de la variante prod release. Pasos manuales tuyos: iniciar sesión en Firebase CLI, crear el grupo de testers y guardar la llave y su contraseña | 6 | sin empezar |
@@ -63,3 +63,9 @@ Pruebas unitarias en verde (`./gradlew testDebugUnitTest`), la app compila (`./g
 | 2026-11-03 | 3 | Renombrado `LedgerEntry` → `CompletedCut` (más claro que el término contable "ledger"); `PunchCard` se queda. En el Paso 4 el repositorio se llamará `CompletedCutRepository`. 21 pruebas en verde |
 | 2026-11-03 | 3 | Convención del usuario: todo caso de uso termina en `UseCase` (registrada en `CLAUDE.md`) |
 | 2026-11-03 | 3 | HTML extra `docs/aprendizaje/03b-motor-vs-caso-de-uso.html`. Pruebas en verde (21 en `:feature:promos`, 16 en `:core`, 1 en `:app`) y los tres ambientes compilan. Commit y pull request hacia `develop` creados; paso 3 terminado, a la espera de que el usuario integre |
+| 2026-11-03 | 3 | Pull request #3 integrado en `develop` (squash, `a9eca8b`); ramas borradas |
+| 2026-11-03 | 4 | Rama `feature/promo-use-cases` creada desde `develop`; paso 4 en progreso: primero la tabla de comportamientos, a la espera de tu aprobación |
+| 2026-11-03 | 4 | Tabla aprobada (al final de `docs/comportamientos-promos.md`; en la agenda el botón "Completar" desaparece al completar y C2/V2 quedan como red de seguridad). Corrutinas 1.11.0, `javax.inject` y `@IoDispatcher` con `DispatchersModule` en `:app`. `CutCharge` y las interfaces `CompleteCutUseCase`/`RevertCutUseCase` en `:core`; repositorios (solo interfaces) e implementaciones (hoy `CompleteCutDataUseCase` y `RevertCutDataUseCase`) en `:feature:promos`. Pruebas primero (10 en rojo) y luego código (verde): 31 en `:feature:promos`, 16 en `:core`, 1 en `:app`; los tres ambientes compilan. Mutación: quitar la protección del doble toque hace fallar una prueba. HTML en `docs/aprendizaje/04-promo-use-cases.html`. Falta tu revisión y autorización del commit |
+| 2026-11-03 | 4 | Decisión del usuario: los casos de uso son clases concretas sin interfaz; solo los que usa otro feature llevan interfaz en `:core` (hoy `CompleteCutUseCase` y `RevertCutUseCase`, usados por agenda y clientes). Registrado en `CLAUDE.md`; el código no cambia |
+| 2026-11-03 | 4 | Código desglosado, una instrucción por línea (preferencia del usuario). Implementaciones renombradas por el usuario: `DefaultCompleteCutUseCase` → `CompleteCutDataUseCase` y `DefaultRevertCutUseCase` → `RevertCutDataUseCase`; regla de nombres en `CLAUDE.md`. HTML extra `docs/aprendizaje/04b-completar-y-revertir-paso-a-paso.html` |
+| 2026-11-03 | 4 | Se mantiene `when` + `return` en los casos de uso (sin `andThen` en `AppResult`). Pruebas en verde (31 en `:feature:promos`, 16 en `:core`, 1 en `:app`) y los tres ambientes compilan. Commit y pull request hacia `develop` creados; paso 4 terminado, a la espera de que el usuario integre |

@@ -1,5 +1,6 @@
 package com.salvarez.mimateyaandroid.feature.promos.domain
 
+import com.salvarez.mimateyaandroid.core.promo.CutCharge
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

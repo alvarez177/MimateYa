@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 4b: completar y revertir un corte, paso a paso</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318} .ok{border-left:4px solid #0E7A4E}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+  .step{display:flex;gap:12px;margin:10px 0}
+  .n{flex:0 0 30px;height:30px;border-radius:50%;background:#1D4ED8;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .n.red{background:#B42318} .n.green{background:#0E7A4E}
+  .step div:last-child{flex:1}
+</style>
+<body>
+<h1>Completar y revertir un corte, paso a paso</h1>
+<p class="sub">Complemento del Paso 4 · <code>CompleteCutDataUseCase</code> y <code>RevertCutDataUseCase</code> en <code>:feature:promos</code></p>
+
+<h2>1. En una frase</h2>
+<table>
+  <tr><th>Clase</th><th>Qué hace</th></tr>
+  <tr><td><code>CompleteCutDataUseCase</code></td><td>Cuando el barbero toca "Completar", <strong>decide cómo se cobra ese corte</strong> (pagado, gratis por tiquetera o del paquete), <strong>lo guarda una sola vez</strong> y le dice a la pantalla cómo se cobró.</td></tr>
+  <tr><td><code>RevertCutDataUseCase</code></td><td>Cuando el barbero toca "Deshacer" o "Revertir", <strong>borra el corte de ese turno</strong>. Como el saldo se calcula desde los cortes, al borrarlo el saldo vuelve solo a como estaba.</td></tr>
+</table>
+<p>Ninguno de los dos habla con Firebase directamente: le piden las cosas a los <strong>repositorios</strong> (interfaces). Y ninguno calcula reglas de promos por su cuenta: eso lo hace el <code>PromoEngine</code> del Paso 3.</p>
+
+<pre><code>Pantalla (agenda / ficha)  →  caso de uso  →  repositorios  →  (Firestore, Paso 6)
+                                   ↓
+                              PromoEngine (reglas)</code></pre>
+
+<h2>2. <code>CompleteCutDataUseCase</code></h2>
+
+<h3>2.1 Qué recibe y qué devuelve</h3>
+<pre><code>suspend operator fun invoke(appointmentId: String, clientId: String): AppResult&lt;CutCharge&gt;</code></pre>
+<ul>
+  <li><strong>Recibe:</strong> el id del turno que se completa (<code>appointmentId</code>) y el id del cliente (<code>clientId</code>).</li>
+  <li><strong>Devuelve:</strong> <code>AppResult.Success(cobro)</code> si salió bien, o <code>AppResult.Failure(error)</code> si algo falló (por ejemplo sin red). El cobro es <code>PAID</code>, <code>FREE_BY_PUNCH_CARD</code> o <code>FROM_PACKAGE</code>; la agenda lo usará para mostrar la animación de "Corte gratis".</li>
+  <li><code>operator fun invoke</code> permite llamarlo como si fuera una función: <code>completeCut("turno-7", "cliente-3")</code>.</li>
+  <li><code>suspend</code>: puede esperar a la nube sin congelar la pantalla.</li>
+</ul>
+
+<h3>2.2 Qué necesita (constructor)</h3>
+<pre><code>class CompleteCutDataUseCase(
+    private val completedCutRepository: CompletedCutRepository,  // historial de cortes
+    private val clientPromoRepository: ClientPromoRepository,    // la promo de cada cliente
+    private val promoEngine: PromoEngine,                        // las reglas
+) : CompleteCutUseCase</code></pre>
+
+<h3>2.3 Paso a paso</h3>
+
+<div class="step"><div class="n">1</div><div>
+<p><strong>Calcula el id fijo del corte.</strong></p>
+<pre><code>val cutId = CompletedCut.idFor(appointmentId)   // "turno-7" → "turno-7-cut"</code></pre>
+<p>El mismo turno siempre produce el mismo id. Un turno tiene como máximo un corte.</p>
+</div></div>
+
+<div class="step"><div class="n">2</div><div>
+<p><strong>Pregunta si ese turno ya tiene su corte guardado.</strong></p>
+<pre><code>val findResult = completedCutRepository.findCompletedCut(cutId)
+val existingCut = when (findResult) {
+    is AppResult.Failure -&gt; return findResult   // no se pudo preguntar: se devuelve el error
+    is AppResult.Success -&gt; findResult.value    // el corte, o null si no existe
+}</code></pre>
+<p>Primero se guarda la respuesta del repositorio en <code>findResult</code>; luego el <code>when</code> la revisa. Si la consulta falla, <code>return findResult</code> sale de la función en ese mismo instante con el error, y no se cobra nada (regla C4).</p>
+</div></div>
+
+<div class="step"><div class="n green">3</div><div>
+<p><strong>Si ya existe, termina ahí y devuelve el cobro original</strong> (doble toque, regla C2).</p>
+<pre><code>if (existingCut != null) {
+    return AppResult.Success(existingCut.charge)
+}</code></pre>
+<p>No vuelve a calcular ni a guardar. Si el primer toque fue un corte gratis, el segundo responde "gratis" también, y el cliente no pierde nada.</p>
+</div></div>
+
+<div class="step"><div class="n">4</div><div>
+<p><strong>Lee la promo del cliente.</strong></p>
+<pre><code>val promoResult = clientPromoRepository.getPromo(clientId)
+val promo = when (promoResult) {
+    is AppResult.Failure -&gt; return promoResult
+    is AppResult.Success -&gt; promoResult.value   // tiquetera, paquete o null (sin promo)
+}</code></pre>
+</div></div>
+
+<div class="step"><div class="n">5</div><div>
+<p><strong>Lee el historial de cortes del cliente</strong>, en el orden en que se completaron.</p>
+<pre><code>val historyResult = completedCutRepository.getCompletedCuts(clientId)
+val history = when (historyResult) {
+    is AppResult.Failure -&gt; return historyResult
+    is AppResult.Success -&gt; historyResult.value
+}</code></pre>
+</div></div>
+
+<div class="step"><div class="n">6</div><div>
+<p><strong>Le pregunta al motor cómo se cobra este corte</strong> y arma el corte completado.</p>
+<pre><code>val charge = promoEngine.nextCutCharge(promo, history)
+val cut = CompletedCut(id = cutId, charge = charge)</code></pre>
+<p>Aquí entran las reglas del Paso 3: si la tiquetera llegó a 10, es gratis; si el paquete tiene cortes, sale del paquete; si no, es pagado (reglas C1 y C3).</p>
+</div></div>
+
+<div class="step"><div class="n">7</div><div>
+<p><strong>Lo guarda y devuelve el cobro.</strong></p>
+<pre><code>val saveResult = completedCutRepository.saveCompletedCut(clientId, cut)
+return saveResult.resolve { charge }</code></pre>
+<p>Guardar devuelve <code>Success(Unit)</code> (nada útil) o un fallo. <code>resolve { charge }</code> cambia ese <code>Success(Unit)</code> por <code>Success(cobro)</code>; si fue un fallo, lo deja pasar tal cual.</p>
+</div></div>
+
+<h3>2.4 Tres ejemplos completos</h3>
+
+<div class="box ok">
+<p><strong>Ejemplo A: Juan tiene una tiquetera de 10 y ya pagó 10 cortes.</strong> El barbero completa el turno "turno-7".</p>
+<ol>
+  <li>id fijo → <code>"turno-7-cut"</code></li>
+  <li>¿existe? → no (<code>null</code>)</li>
+  <li>sigue</li>
+  <li>promo → <code>PunchCard(cutsForFreeCut = 10)</code></li>
+  <li>historial → 10 cortes <code>PAID</code></li>
+  <li>motor → <code>FREE_BY_PUNCH_CARD</code></li>
+  <li>guarda <code>CompletedCut("turno-7-cut", FREE_BY_PUNCH_CARD)</code> → devuelve <code>Success(FREE_BY_PUNCH_CARD)</code> → la agenda muestra "Corte gratis"</li>
+</ol>
+</div>
+
+<div class="box tip">
+<p><strong>Ejemplo B: el barbero toca "Completar" dos veces muy rápido en ese mismo turno.</strong></p>
+<ol>
+  <li>id fijo → <code>"turno-7-cut"</code></li>
+  <li>¿existe? → sí, <code>CompletedCut("turno-7-cut", FREE_BY_PUNCH_CARD)</code></li>
+  <li>termina: devuelve <code>Success(FREE_BY_PUNCH_CARD)</code>. No lee la promo, no calcula, no guarda.</li>
+</ol>
+<p>Si no existiera este paso 3, el motor vería 10 pagados + 1 gratis, diría "pagado", y sobrescribiría el gratis: Juan perdería su corte gratis.</p>
+</div>
+
+<div class="box warn">
+<p><strong>Ejemplo C: no hay red y la lectura de la promo falla.</strong></p>
+<ol>
+  <li>id fijo → <code>"turno-7-cut"</code></li>
+  <li>¿existe? → no</li>
+  <li>sigue</li>
+  <li>promo → <code>Failure(AppError.Network)</code> → <strong>termina</strong> y devuelve ese error</li>
+</ol>
+<p>No se guarda nada ni se inventa un cobro. La pantalla mostrará el mensaje en español de <code>ErrorMessageMapper</code> (Paso 2).</p>
+<p class="sub">Nota: con Firestore offline (Paso 6) normalmente la lectura sale de la copia local del celular, así que este caso será raro.</p>
+</div>
+
+<h2>3. <code>RevertCutDataUseCase</code></h2>
+
+<h3>3.1 Qué recibe y qué devuelve</h3>
+<pre><code>suspend operator fun invoke(appointmentId: String): AppResult&lt;Unit&gt;</code></pre>
+<ul>
+  <li><strong>Recibe:</strong> solo el id del turno. Con eso calcula el id fijo del corte; no necesita el cliente.</li>
+  <li><strong>Devuelve:</strong> <code>Success(Unit)</code> ("listo, no hay nada más que contar") o <code>Failure(error)</code>.</li>
+</ul>
+
+<h3>3.2 Paso a paso</h3>
+<pre><code>override suspend fun invoke(appointmentId: String): AppResult&lt;Unit&gt; {
+    val cutId = CompletedCut.idFor(appointmentId)
+
+    return completedCutRepository.deleteCompletedCut(cutId)
+}</code></pre>
+
+<div class="step"><div class="n">1</div><div>
+<p><strong>Calcula el id fijo:</strong> <code>"turno-7"</code> → <code>"turno-7-cut"</code>. Es el mismo id que usó completar, por eso sabe exactamente qué borrar.</p>
+</div></div>
+<div class="step"><div class="n">2</div><div>
+<p><strong>Le pide al repositorio borrar ese corte</strong> y devuelve lo que el repositorio responda: éxito (regla V1) o el error (regla V3).</p>
+</div></div>
+
+<h3>3.3 Por qué el saldo vuelve solo</h3>
+<p>El saldo nunca se guarda: siempre se calcula desde el historial. Si el historial tenía 10 pagados + 1 gratis y se borra el gratis, el motor vuelve a ver 10 pagados y dice "tiene un gratis disponible". No hay que "devolver" nada a mano.</p>
+
+<h3>3.4 Dos ejemplos</h3>
+<div class="box ok">
+<p><strong>Ejemplo D: el barbero completó por error el turno de Juan (con Juan aún en la silla) y toca "Deshacer".</strong></p>
+<ol>
+  <li>id fijo → <code>"turno-7-cut"</code></li>
+  <li>borra → <code>Success(Unit)</code>. El gratis de Juan vuelve a estar disponible. Cuando termine el corte, lo completa otra vez normalmente.</li>
+</ol>
+</div>
+<div class="box tip">
+<p><strong>Ejemplo E: toca "Deshacer" dos veces.</strong> La segunda vez el corte ya no existe; borrar algo que no existe es un éxito (lo promete el repositorio, regla V2). Devuelve <code>Success(Unit)</code> y la pantalla no muestra ningún error.</p>
+</div>
+
+<p class="sub">Lo que <strong>todavía no</strong> hace: devolver el turno a "programado" en la misma escritura. Eso llega en el Paso 11, cuando existan los turnos.</p>
+
+<h2>4. Lado a lado</h2>
+<table>
+  <tr><th></th><th>Completar</th><th>Revertir</th></tr>
+  <tr><td>Recibe</td><td>turno y cliente</td><td>solo turno</td></tr>
+  <tr><td>Devuelve</td><td>el cobro (<code>CutCharge</code>)</td><td>nada (<code>Unit</code>)</td></tr>
+  <tr><td>Usa el motor</td><td>sí, para decidir el cobro</td><td>no</td></tr>
+  <tr><td>Llamadas al repositorio</td><td>buscar, leer promo, leer historial, guardar</td><td>borrar</td></tr>
+  <tr><td>Si se llama dos veces</td><td>devuelve el cobro original, no guarda otro</td><td>éxito, no pasa nada</td></tr>
+  <tr><td>Quién lo llamará</td><td>agenda ("Completar", Paso 11)</td><td>agenda ("Deshacer", Paso 11) y ficha del cliente ("Revertir", Paso 8)</td></tr>
+</table>
+
+<h2>5. Sobre los nombres</h2>
+<p>Hoy cada uno tiene dos piezas: la <strong>interfaz</strong> en <code>:core</code> (<code>CompleteCutUseCase</code>, <code>RevertCutUseCase</code>), que es lo que verán la agenda y la ficha del cliente, y la <strong>implementación</strong> en <code>:feature:promos</code>, que es todo lo explicado arriba. Como la interfaz ya usa el nombre corto, la implementación necesita otro. Elegiste <code>CompleteCutDataUseCase</code> y <code>RevertCutDataUseCase</code>: conservan la palabra de la interfaz y terminan en <code>UseCase</code>.</p>
+</body>
+</html>
