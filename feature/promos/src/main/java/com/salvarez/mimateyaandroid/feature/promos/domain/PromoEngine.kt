@@ -1,5 +1,7 @@
 package com.salvarez.mimateyaandroid.feature.promos.domain
 
+import com.salvarez.mimateyaandroid.core.promo.CutCharge
+
 /**
  * Pure business rules for promos (see docs/comportamientos-promos.md).
  * It does not save anything: it reads a client's promo and history and answers

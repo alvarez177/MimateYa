@@ -39,3 +39,33 @@ Aprobada por el usuario el 2026-11-03. Es la fuente de las pruebas de `PromoEngi
 ## Pendiente para el Paso 13 (vender o asignar promo)
 
 Como un cliente solo puede tener una promo, hay que decidir cómo se cambia de tiquetera a paquete: un paquete termina solo al agotarse, pero una tiquetera nunca termina. ¿El barbero puede "finalizar" la tiquetera? ¿Qué pasa si tenía un gratis pendiente?
+
+## Casos de uso: completar y revertir (Paso 4)
+
+Aprobada por el usuario el 2026-11-03. Es la fuente de las pruebas de `CompleteCutUseCase` y `RevertCutUseCase` (TDD).
+
+**Id fijo:** el corte de un turno siempre tiene el id `"<appointmentId>-cut"`. Un turno tiene como máximo un corte completado.
+
+**`CompleteCutUseCase(appointmentId, clientId)`**: el barbero toca "Completar".
+
+| # | Situación | Resultado |
+|---|---|---|
+| C1 | Turno sin completar | Lee la promo y los cortes del cliente, pide el cobro a `PromoEngine.nextCutCharge(...)`, guarda el `CompletedCut` con el id fijo y devuelve el cobro (para que la pantalla sepa si fue gratis) |
+| C2 | Doble toque: ese turno ya tiene su corte | **No guarda otro** ni recalcula: devuelve el cobro del corte que ya existe |
+| C3 | Cliente con gratis disponible | Se guarda como `FREE_BY_PUNCH_CARD` |
+| C4 | Falla leer o guardar (por ejemplo sin red) | Devuelve `AppResult.Failure` con el `AppError` del repositorio; no se reintenta ni se inventa un cobro |
+
+**`RevertCutUseCase(appointmentId)`**: el barbero toca "Deshacer" o "Revertir".
+
+| # | Situación | Resultado |
+|---|---|---|
+| V1 | El turno tiene corte completado | Lo **borra**; el saldo vuelve a como estaba |
+| V2 | Ya se había revertido (doble toque en "Deshacer") | Éxito sin hacer nada: borrar un corte que no existe no es un error (contrato del repositorio) |
+| V3 | Falla borrar | `AppResult.Failure` con el error |
+
+**Decisiones del paso**
+- En `domain` solo van las interfaces de repositorio (`CompletedCutRepository`, `ClientPromoRepository`) y los casos de uso; la implementación y el `DataSource` llegan con Firestore en el Paso 6.
+- El repositorio devuelve los cortes **en el orden en que se completaron**; cómo se ordena es un detalle de `data` (Paso 6).
+- Volver el turno a "programado" en la misma escritura se hace en el Paso 11, cuando existan los turnos.
+- Las interfaces `CompleteCutUseCase` y `RevertCutUseCase` viven en `:core` (decisión D4) para que la agenda las use sin depender de promos; la implementación vive en `:feature:promos`.
+- En la agenda (Paso 11), al completar, la tarjeta pasa a "completado" al instante y el botón "Completar" desaparece; "Deshacer" se muestra 6 segundos. C2 y V2 son la red de seguridad para los casos raros (pantalla recreada, agenda desactualizada, toque muy rápido).

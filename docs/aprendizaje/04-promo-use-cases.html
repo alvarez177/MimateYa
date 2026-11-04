@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paso 4: completar y revertir un corte — qué hicimos y por qué</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:860px;margin:32px auto;padding:0 18px 60px;color:#12161C;line-height:1.6;background:#FAFAF8}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #E3E5E8;padding-bottom:6px} h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#12161C;color:#EDEFF2;padding:14px 16px;border-radius:10px;overflow:auto}
+  code{background:#EEF0F3;padding:2px 5px;border-radius:4px} pre code{background:none;padding:0}
+  .box{background:#fff;border:1px solid #E3E5E8;border-radius:12px;padding:12px 16px;margin:14px 0}
+  .tip{border-left:4px solid #1D4ED8} .warn{border-left:4px solid #B42318} .ok{border-left:4px solid #0E7A4E}
+  table{border-collapse:collapse;width:100%} td,th{border:1px solid #E3E5E8;padding:8px 10px;text-align:left;font-size:14px;vertical-align:top} th{background:#EEF0F3}
+  .sub{color:#4A5260}
+</style>
+<body>
+<h1>Paso 4: completar y revertir un corte</h1>
+<p class="sub">Rama <code>feature/promo-use-cases</code> · <code>:core</code> (interfaces) y <code>:feature:promos</code> (implementación) · casos de uso con corrutinas, hechos con TDD</p>
+
+<h2>1. Qué hace</h2>
+<p>En el Paso 3 hicimos el motor (<code>PromoEngine</code>), que <em>calcula</em> pero no guarda nada. En este paso hicimos las dos <strong>acciones</strong> que usan ese motor y guardan el resultado:</p>
+<table>
+  <tr><th>Caso de uso</th><th>Cuándo</th><th>Qué hace</th></tr>
+  <tr><td><code>CompleteCutUseCase</code></td><td>El barbero toca "Completar"</td><td>Decide cómo se cobra el corte (con el motor), lo guarda <strong>una sola vez</strong> y devuelve el cobro</td></tr>
+  <tr><td><code>RevertCutUseCase</code></td><td>El barbero toca "Deshacer" o "Revertir"</td><td>Borra el corte; el saldo vuelve a como estaba</td></tr>
+</table>
+<p>Las reglas salen de la tabla que aprobaste (C1 a C4 y V1 a V3), al final de <code>docs/comportamientos-promos.md</code>.</p>
+
+<h2>2. Dónde vive cada pieza</h2>
+<pre><code>:core
+  promo/CutCharge.kt            ← se movió aquí desde :feature:promos
+  promo/CompleteCutUseCase.kt   ← interfaz
+  promo/RevertCutUseCase.kt     ← interfaz
+  dispatcher/IoDispatcher.kt    ← calificador para inyectar Dispatchers.IO
+
+:feature:promos  (paquete domain)
+  CompletedCutRepository.kt     ← interfaz: historial de cortes
+  ClientPromoRepository.kt      ← interfaz: la promo de cada cliente
+  CompleteCutDataUseCase.kt  ← implementación
+  RevertCutDataUseCase.kt    ← implementación
+
+:app
+  di/DispatchersModule.kt       ← único lugar donde se elige Dispatchers.IO</code></pre>
+
+<div class="box tip">
+<p><strong>¿Por qué la interfaz en <code>:core</code> y la implementación en promos?</strong> (decisión D4). Completar un corte se dispara desde la <strong>agenda</strong>, pero las reglas son de <strong>promos</strong>. Si la agenda dependiera de <code>:feature:promos</code>, los módulos se enredarían. Así, la agenda solo conoce la interfaz de <code>:core</code>, y Hilt (en <code>:app</code>) le entrega la implementación. Por eso también <code>CutCharge</code> se mudó a <code>:core</code>: la agenda necesita leer el cobro para mostrar "Corte gratis".</p>
+</div>
+<p><strong>Regla (decidida por ti):</strong> por defecto un caso de uso es una clase concreta, sin interfaz; para probarlo no hace falta, porque MockK simula clases concretas. Solo lleva interfaz cuando lo usa <em>otro</em> feature: <code>CompleteCutUseCase</code> lo usa la agenda, y <code>RevertCutUseCase</code> la agenda ("Deshacer") y la ficha del cliente ("Revertir").</p>
+<p>Las implementaciones se llaman <code>CompleteCutDataUseCase</code> y <code>RevertCutDataUseCase</code> (nombres elegidos por ti): conservan la palabra de la interfaz, así se ve de cuál vienen, y siguen terminando en <code>UseCase</code>.</p>
+
+<h2>3. Completar: el código, paso a paso</h2>
+<pre><code>override suspend fun invoke(appointmentId: String, clientId: String): AppResult&lt;CutCharge&gt; {
+    val cutId = CompletedCut.idFor(appointmentId)          // "appointment-1-cut"
+
+    val findResult = completedCutRepository.findCompletedCut(cutId)
+    val existingCut = when (findResult) {
+        is AppResult.Failure -&gt; return findResult            // C4: falla, se devuelve tal cual
+        is AppResult.Success -&gt; findResult.value
+    }
+
+    if (existingCut != null) {                                // C2: doble toque
+        return AppResult.Success(existingCut.charge)
+    }
+
+    val promoResult = ...    // lee la promo (o falla)
+    val historyResult = ...  // lee el historial (o falla)
+
+    val charge = promoEngine.nextCutCharge(promo, history)    // C1, C3
+    val cut = CompletedCut(id = cutId, charge = charge)
+
+    val saveResult = completedCutRepository.saveCompletedCut(clientId, cut)
+    return saveResult.resolve { charge }
+}</code></pre>
+
+<h3>3.1 El id fijo</h3>
+<p><code>CompletedCut.idFor(appointmentId)</code> siempre da el mismo id para el mismo turno: <code>"&lt;turno&gt;-cut"</code>. Un turno tiene como máximo un corte. Es la base del "descuento único".</p>
+
+<h3>3.2 Por qué revisar primero si ya existe (C2)</h3>
+<div class="box warn">
+<p>Sin esa revisión, el segundo toque recalcularía el cobro con un historial que <strong>ya incluye</strong> el primer corte. Si el primero fue el gratis, el segundo saldría "pagado" y lo sobrescribiría: <strong>el cliente perdería su gratis</strong>.</p>
+</div>
+<p>Lo comprobamos con una mutación: quitamos esa línea a propósito y la prueba <em>"given the appointment already has its cut when completing it again ..."</em> falló. Volvimos a ponerla y todo quedó en verde.</p>
+<p>Como hablamos, en la agenda (Paso 11) la tarjeta pasa a "completado" al instante y el botón desaparece. Esto es la red de seguridad para lo raro: pantalla recreada, agenda desactualizada o un toque muy rápido.</p>
+
+<h3>3.3 El <code>when</code> con <code>return</code></h3>
+<p><code>AppResult</code> solo tiene <code>resolve</code> (decisión tuya del Paso 2). Para encadenar tres lecturas usamos <code>when</code>: si es <code>Failure</code>, <code>return</code> sale de la función devolviendo ese mismo error; si es <code>Success</code>, saca el valor y sigue. Es un poco más largo, pero se lee de arriba a abajo sin trucos. Al final, <code>resolve { charge }</code> convierte el <code>Success(Unit)</code> del guardado en <code>Success(cargo)</code>, y si el guardado falló, el fallo pasa intacto.</p>
+
+<h2>4. Revertir</h2>
+<pre><code>override suspend fun invoke(appointmentId: String): AppResult&lt;Unit&gt; {
+    val cutId = CompletedCut.idFor(appointmentId)
+
+    return completedCutRepository.deleteCompletedCut(cutId)
+}</code></pre>
+<p>Es casi solo reenviar la llamada, y está bien: la regla del proyecto dice que <strong>siempre</strong> hay un caso de uso entre el ViewModel y el repositorio. Lo importante está en el <strong>contrato</strong> del repositorio: borrar un corte que ya no existe es un éxito (V2). Así, tocar "Deshacer" dos veces no muestra un error. Firestore ya se comporta así al borrar.</p>
+<p>Devolver el turno a "programado" en la misma escritura llega en el Paso 11, cuando existan los turnos.</p>
+
+<h2>5. Los repositorios (solo interfaces por ahora)</h2>
+<pre><code>interface CompletedCutRepository {
+    suspend fun findCompletedCut(id: String): AppResult&lt;CompletedCut?&gt;
+    suspend fun getCompletedCuts(clientId: String): AppResult&lt;List&lt;CompletedCut&gt;&gt;  // en orden
+    suspend fun saveCompletedCut(clientId: String, cut: CompletedCut): AppResult&lt;Unit&gt;
+    suspend fun deleteCompletedCut(id: String): AppResult&lt;Unit&gt;
+}
+
+interface ClientPromoRepository {
+    suspend fun getPromo(clientId: String): AppResult&lt;Promo?&gt;
+}</code></pre>
+<p>Viven en <code>domain</code> (el "qué"). El "cómo" (Firestore y su <code>DataSource</code>) llega en el Paso 6. <code>getCompletedCuts</code> promete devolver los cortes <strong>en el orden en que se completaron</strong>, porque la tiquetera depende de ese orden.</p>
+
+<h2>6. Corrutinas y despachadores</h2>
+<ul>
+  <li><code>suspend</code>: las funciones pueden esperar (leer o guardar en la nube) sin bloquear la pantalla.</li>
+  <li><code>kotlinx-coroutines-core 1.11.0</code> en <code>:core</code> y <code>kotlinx-coroutines-test</code> en las pruebas de promos (para <code>runTest</code>).</li>
+  <li><code>@IoDispatcher</code>: una etiqueta para pedirle a Hilt "el despachador de red y disco". El código nunca escribe <code>Dispatchers.IO</code> directamente; lo elige <code>DispatchersModule</code> en <code>:app</code>. En pruebas se puede cambiar por uno de prueba. Lo usará el <code>DataSource</code> del Paso 6. Los casos de uso no lo necesitan: solo llaman funciones <code>suspend</code>.</li>
+</ul>
+
+<h2>7. Las pruebas (TDD)</h2>
+<p>Primero escribimos las 10 pruebas con los casos de uso vacíos (<code>TODO()</code>): <strong>10 en rojo</strong>. Luego el código: <strong>verde</strong>. Total en el proyecto: 31 en <code>:feature:promos</code>, 16 en <code>:core</code>, 1 en <code>:app</code>.</p>
+<table>
+  <tr><th>Regla</th><th>Prueba</th></tr>
+  <tr><td>C1</td><td>punch card without a free cut yet ... should save it as paid with the fixed id · package with cuts left ... from the package</td></tr>
+  <tr><td>C3</td><td>punch card with a free cut available ... should save it as free</td></tr>
+  <tr><td>C2</td><td>the appointment already has its cut ... return the original charge without saving another</td></tr>
+  <tr><td>C4</td><td>4 pruebas: falla al buscar, al leer la promo, al leer el historial y al guardar</td></tr>
+  <tr><td>V1, V3</td><td>delete the cut with the fixed id · deleting fails ... return that error</td></tr>
+  <tr><td>V2</td><td>Lo cubre el contrato del repositorio; desde el caso de uso sería la misma prueba que V1</td></tr>
+</table>
+<div class="box ok">
+<p><strong>Pruebas explícitas, sin <code>any()</code>:</strong> para decir "no guardó nada" usamos <code>confirmVerified(completedCutRepository)</code> (después de verificar solo la búsqueda, falla si hubo cualquier otra llamada) y <code>verify { clientPromoRepository wasNot Called }</code>. Y usamos el <code>PromoEngine</code> real, no un mock: así la prueba confirma que el cobro guardado es el que de verdad da la regla.</p>
+</div>
+
+<h2>8. Lo que queda para después</h2>
+<ul>
+  <li><strong>Paso 6:</strong> implementación de los repositorios con Firestore y <code>DataSource</code>, usando <code>@IoDispatcher</code>.</li>
+  <li><strong>Paso 11:</strong> completar desde la agenda, cablear los casos de uso con Hilt, y revertir el corte junto con el turno en una sola escritura.</li>
+</ul>
+</body>
+</html>

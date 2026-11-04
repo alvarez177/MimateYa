@@ -19,6 +19,8 @@ android {
 
 dependencies {
     api(libs.kotlinx.collections.immutable)
+    api(libs.kotlinx.coroutines.core)
+    api(libs.javax.inject)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
 }

@@ -1,11 +1,6 @@
 package com.salvarez.mimateyaandroid.feature.promos.domain
 
-/** How a completed cut was charged. It is decided when the cut is completed and never changes. */
-enum class CutCharge {
-    PAID,
-    FREE_BY_PUNCH_CARD,
-    FROM_PACKAGE,
-}
+import com.salvarez.mimateyaandroid.core.promo.CutCharge
 
 /**
  * A cut that was completed, and how it was charged. A client's history is the list of
@@ -15,4 +10,10 @@ enum class CutCharge {
  * Reverting a cut completed by mistake deletes it and puts the appointment back
  * to scheduled, so the history only holds cuts that really happened.
  */
-data class CompletedCut(val id: String, val charge: CutCharge)
+data class CompletedCut(val id: String, val charge: CutCharge) {
+
+    companion object {
+        /** Fixed id: an appointment has at most one completed cut, so completing twice cannot charge twice. */
+        fun idFor(appointmentId: String): String = "$appointmentId-cut"
+    }
+}
