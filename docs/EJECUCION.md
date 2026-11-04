@@ -14,7 +14,7 @@ Este archivo es la **fuente de verdad del avance**. Si la sesión se cierra o se
 - Al terminar cada paso se genera `docs/aprendizaje/NN-<paso>.html` explicando el código en español.
 - Plan aprobado: `/Users/sebastianalvarez/.claude/plans/typed-munching-peach.md` (copia de las reglas y del detalle del paso 1).
 
-**Paso en curso:** ninguno (Paso 4 a la espera de integrar; siguiente: Paso 5 `feature/design-system`)
+**Paso en curso:** ninguno (Paso 5 a la espera de integrar; siguiente: Paso 6 `feature/firebase-setup`)
 
 ## Pasos
 
@@ -23,8 +23,8 @@ Este archivo es la **fuente de verdad del avance**. Si la sesión se cierra o se
 | 1 | `feature/project-setup` | Gradle modular (`:app`, `:core`, `:feature:agenda`, `:feature:clients`, `:feature:promos`), Hilt, MockK, versiones al día, ambientes dev/QA/prod con icono y nombre propios; la app compila y abre | — | terminado (integrado en `develop`, PR #1) |
 | 2 | `feature/core-errors` | `AppError`, `AppResult` con `resolve`, `ErrorMapper`, `appResultOf`, `ErrorMessageMapper` en español, con pruebas primero | 1 | terminado (integrado en `develop`, PR #2) |
 | 3 | `feature/promo-engine` | Tabla de comportamientos, modelos de dominio y `PromoEngine` en Kotlin puro (tests primero) | 2 | terminado (integrado en `develop`, PR #3) |
-| 4 | `feature/promo-use-cases` | `CompletedCutRepository`, `CompleteCutUseCase` (id fijo, idempotente), `RevertCutUseCase` (borra el corte completado) como funciones `suspend`; añade `kotlinx-coroutines` y `kotlinx-coroutines-test` (`runTest`) y los despachadores inyectables; tests con MockK primero | 3 | terminado (PR hacia `develop`, a la espera de integrar) |
-| 5 | `feature/design-system` | Tema claro y oscuro, tokens aprobados, fuentes locales en `res/font` | 1 | sin empezar |
+| 4 | `feature/promo-use-cases` | `CompletedCutRepository`, `CompleteCutUseCase` (id fijo, idempotente), `RevertCutUseCase` (borra el corte completado) como funciones `suspend`; añade `kotlinx-coroutines` y `kotlinx-coroutines-test` (`runTest`) y los despachadores inyectables; tests con MockK primero | 3 | terminado (integrado en `develop`, PR #4) |
+| 5 | `feature/design-system` | Tema claro y oscuro, tokens aprobados, fuentes locales en `res/font` | 1 | terminado (PR hacia `develop`, a la espera de integrar) |
 | 6 | `feature/firebase-setup` | Tres ambientes (dev, QA, prod) con flavors, Firestore y Auth, `DataSource` propio con `suspend`/`Flow` (añade `kotlinx-coroutines-play-services` y `callbackFlow`) y mapeo de excepciones | 2 | sin empezar |
 | 6b | `feature/app-distribution` | Firebase App Distribution: subir las variantes dev, QA y prod desde Gradle y descargarlas desde la app Firebase App Tester; grupo de testers por ambiente. También crea la llave de firma (keystore) de prod, fuera del repo y con copia de seguridad tuya, y configura la firma de la variante prod release. Pasos manuales tuyos: iniciar sesión en Firebase CLI, crear el grupo de testers y guardar la llave y su contraseña | 6 | sin empezar |
 | 7 | `feature/auth` | Registro (con nombre de la barbería) e inicio de sesión con email y contraseña, MVI, navegación inicial | 5, 6 | sin empezar |
@@ -69,3 +69,8 @@ Pruebas unitarias en verde (`./gradlew testDebugUnitTest`), la app compila (`./g
 | 2026-11-03 | 4 | Decisión del usuario: los casos de uso son clases concretas sin interfaz; solo los que usa otro feature llevan interfaz en `:core` (hoy `CompleteCutUseCase` y `RevertCutUseCase`, usados por agenda y clientes). Registrado en `CLAUDE.md`; el código no cambia |
 | 2026-11-03 | 4 | Código desglosado, una instrucción por línea (preferencia del usuario). Implementaciones renombradas por el usuario: `DefaultCompleteCutUseCase` → `CompleteCutDataUseCase` y `DefaultRevertCutUseCase` → `RevertCutDataUseCase`; regla de nombres en `CLAUDE.md`. HTML extra `docs/aprendizaje/04b-completar-y-revertir-paso-a-paso.html` |
 | 2026-11-03 | 4 | Se mantiene `when` + `return` en los casos de uso (sin `andThen` en `AppResult`). Pruebas en verde (31 en `:feature:promos`, 16 en `:core`, 1 en `:app`) y los tres ambientes compilan. Commit y pull request hacia `develop` creados; paso 4 terminado, a la espera de que el usuario integre |
+| 2026-11-03 | 4 | Pull request #4 integrado en `develop` (squash, `c11a464`); ramas borradas |
+| 2026-11-03 | 5 | Rama `feature/design-system` creada desde `develop`; paso 5 en progreso: primero el plan del paso, a la espera de tu aprobación |
+| 2026-11-03 | 5 | Plan aprobado; módulo nuevo para el diseño (opción A, registrada en `CLAUDE.md`). Colores del mockup claro/oscuro (`MimateYaColors` + Material 3, sin color dinámico), Bricolage Grotesque y Figtree variables en `res/font` (licencias OFL en `docs/licencias/`), tipografía y formas del mockup, pantalla de muestra temporal con `@Preview`. Tema de plantilla borrado; fondo de ventana sin destello blanco. Verificado en emulador en claro y oscuro; pruebas en verde y los tres ambientes compilan. HTML en `docs/aprendizaje/05-design-system.html`. Falta tu revisión y autorización del commit |
+| 2026-11-04 | 5 | Decisión del usuario: el módulo de diseño va en la raíz como `:designsystem` (paquete `com.salvarez.mimateyaandroid.designsystem`), fuera de `core/`; `:core` nunca lo conoce, solo `:app` y los features. Registrado en `CLAUDE.md` y en el HTML |
+| 2026-11-04 | 5 | Pruebas en verde y los tres ambientes compilan. Commit y pull request hacia `develop` creados; paso 5 terminado, a la espera de que el usuario integre |

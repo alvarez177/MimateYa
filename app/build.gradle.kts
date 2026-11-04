@@ -63,6 +63,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":designsystem"))
     implementation(project(":feature:agenda"))
     implementation(project(":feature:clients"))
     implementation(project(":feature:promos"))
